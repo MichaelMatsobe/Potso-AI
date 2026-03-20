@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Potso</title>
+    <script>
+      // Protection against libraries trying to overwrite window.fetch
+      (function() {
+        const nativeFetch = window.fetch;
+        try {
+          Object.defineProperty(window, 'fetch', {
+            get: () => nativeFetch,
+            set: () => { console.warn('Blocked attempt to overwrite window.fetch'); },
+            configurable: true
+          });
+        } catch (e) {
+          console.error('Failed to protect window.fetch', e);
+        }
+        
+        // Define a safe 'global' object that is NOT window
+        window.global = window.global || {
+          fetch: nativeFetch.bind(window),
+          Headers: window.Headers,
+          Request: window.Request,
+          Response: window.Response,
+          FormData: window.FormData,
+          XMLHttpRequest: window.XMLHttpRequest,
+          navigator: window.navigator
+        };
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

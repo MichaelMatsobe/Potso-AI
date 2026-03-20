@@ -1,0 +1,8 @@
+{
+  "name": "Potso",
+  "description": "A collaborative South African multi-agent interface for complex reasoning and synthesis.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
