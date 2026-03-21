@@ -40,6 +40,7 @@ import { AGENTS as DEFAULT_AGENTS, Message, AgentId, Agent, Chat, Artifact, Atta
 import { getMultiAgentResponse } from './services/geminiService';
 
 import { LiveVoiceModal } from './components/LiveVoiceModal';
+import { Settings as SettingsPanel } from './components/Settings';
 
 const AVAILABLE_ICONS = {
   Search,
@@ -393,6 +394,10 @@ export default function App() {
     );
   };
 
+  // Authentication screen loading
+  // App starts directly without authentication
+
+  // Main application
   return (
     <div className="h-screen flex overflow-hidden bg-dark-bg text-gray-100 font-sans">
       {/* Sidebar */}
@@ -957,119 +962,10 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Settings Modal */}
+      {/* Settings Panel */}
       <AnimatePresence>
         {showSettings && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-          >
-            <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              className="w-full max-w-md glass-panel rounded-2xl overflow-hidden flex flex-col max-h-[80vh]"
-            >
-              <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                <h2 className="text-sm font-bold uppercase tracking-widest text-primary">Agent Customization</h2>
-                <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-white">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                {agents.map(agent => (
-                  <div key={agent.id} className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center">
-                        {(() => {
-                          const IconComponent = (AVAILABLE_ICONS as any)[agent.icon];
-                          return IconComponent ? (
-                            <IconComponent className="w-5 h-5 text-primary" />
-                          ) : (
-                            <svg viewBox="0 0 24 24" className="w-5 h-5 fill-none stroke-primary" strokeWidth={1.5}>
-                              <path d={agent.icon} strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          );
-                        })()}
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold">{agent.name}</h3>
-                        <p className="text-[10px] text-gray-400 uppercase tracking-wider">{agent.role}</p>
-                      </div>
-                      <button 
-                        onClick={() => {
-                          setEditingAgent(agent);
-                          setCustomPath(agent.icon.startsWith('M') ? agent.icon : '');
-                        }}
-                        className="ml-auto text-xs text-primary hover:underline"
-                      >
-                        Edit Icon
-                      </button>
-                    </div>
-
-                    {editingAgent?.id === agent.id && (
-                      <motion.div 
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-4"
-                      >
-                        <div className="space-y-2">
-                          <label className="text-[10px] text-gray-400 uppercase font-bold">Preset Icons</label>
-                          <div className="grid grid-cols-5 gap-2">
-                            {Object.entries(AVAILABLE_ICONS).map(([name, Icon]) => (
-                              <button
-                                key={name}
-                                onClick={() => handleUpdateAgentIcon(agent.id, name)}
-                                className={`p-2 rounded-lg border transition-all flex items-center justify-center
-                                  ${agent.icon === name ? 'border-primary bg-primary/10' : 'border-white/10 hover:bg-white/10'}`}
-                              >
-                                <Icon className={`w-4 h-4 ${agent.icon === name ? 'text-primary' : 'text-gray-400'}`} />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="text-[10px] text-gray-400 uppercase font-bold">Custom SVG Path (d attribute)</label>
-                          <div className="flex gap-2">
-                            <input 
-                              type="text"
-                              value={customPath}
-                              onChange={(e) => setCustomPath(e.target.value)}
-                              placeholder="M12 2L2 7l10 5 10-5-10-5z..."
-                              className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-primary"
-                            />
-                            <button 
-                              onClick={() => {
-                                if (customPath.trim()) {
-                                  handleUpdateAgentIcon(agent.id, customPath.trim());
-                                }
-                              }}
-                              className="bg-primary/20 text-primary p-2 rounded-lg hover:bg-primary/30 transition-colors"
-                            >
-                              <Check className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <p className="text-[8px] text-gray-500 italic">Example: M12 2L2 7l10 5 10-5-10-5z (Diamond)</p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="p-4 border-t border-white/10">
-                <button 
-                  onClick={() => setShowSettings(false)}
-                  className="w-full bg-primary text-dark-bg font-bold py-2 rounded-xl hover:brightness-110 transition-all"
-                >
-                  Done
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+          <SettingsPanel user={user} onClose={() => setShowSettings(false)} />
         )}
       </AnimatePresence>
     </div>
