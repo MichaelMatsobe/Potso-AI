@@ -1,5 +1,11 @@
 import { Router } from 'express';
-import { getMultiAgentResponse, getProvider, type AIMessage } from '../services/aiService';
+import {
+  getMultiAgentResponse,
+  getProvider,
+  getProviderMode,
+  isFreebuffConfigured,
+  type AIMessage,
+} from '../services/aiService.js';
 
 const router = Router();
 
@@ -37,7 +43,8 @@ router.post('/chat', async (req, res) => {
       consensusReached: result.consensusReached || false,
       imageUrl: result.imageUrl,
       meta: result._meta || null,
-      provider: getProvider(),
+      provider: result._meta?.provider || getProvider(),
+      mode: getProviderMode(),
     });
   } catch (error) {
     console.error('[AI] /chat error:', error);
@@ -49,8 +56,12 @@ router.post('/chat', async (req, res) => {
 });
 
 router.get('/status', async (_req, res) => {
-  const provider = getProvider();
-  res.json({ provider, timestamp: new Date().toISOString() });
+  res.json({
+    provider: getProvider(),
+    mode: getProviderMode(),
+    freebuffConfigured: isFreebuffConfigured(),
+    timestamp: new Date().toISOString(),
+  });
 });
 
 export default router;

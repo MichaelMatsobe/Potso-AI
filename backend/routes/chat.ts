@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { getFirestore } from '../config/firebase';
-import { getMultiAgentResponse } from '../services/aiService';
-import { verifyAuthToken, AuthRequest } from '../middleware/auth';
-import { withTtl, computeExpireAt } from '../services/retention';
+import { getFirestore } from '../config/firebase.js';
+import { getMultiAgentResponse } from '../services/aiService.js';
+import { verifyAuthToken, AuthRequest } from '../middleware/auth.js';
+import { withTtl, computeExpireAt } from '../services/retention.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
@@ -112,7 +112,6 @@ router.post('/chats/:chatId/messages', verifyAuthToken, async (req: AuthRequest,
 
     await messagesCol.doc(userMessageId).set(userMessage);
 
-    // Sliding retention: extend chat parent TTL on activity
     await db
       .collection('users')
       .doc(userId)
