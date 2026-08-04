@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Potso: npm run dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "reveal": "always" }
+    },
+    {
+      "label": "Potso: sop-check",
+      "type": "shell",
+      "command": "npm run sop-check",
+      "problemMatcher": []
+    },
+    {
+      "label": "Potso: smoke",
+      "type": "shell",
+      "command": "npm run smoke",
+      "problemMatcher": []
+    }
+  ]
+}
