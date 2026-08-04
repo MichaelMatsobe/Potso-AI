@@ -17,13 +17,16 @@ initializeApp(firebaseConfig);
 
 export default function RootLayout() {
   useEffect(() => {
-    const auth = getAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // User authentication handling
-      console.log('Auth state changed:', user?.email);
-    });
-
-    return unsubscribe;
+    try {
+      const auth = getAuth();
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        console.log('Auth state changed:', user?.email ?? 'guest');
+      });
+      return unsubscribe;
+    } catch (e) {
+      console.warn('Firebase auth not configured yet:', e);
+      return () => {};
+    }
   }, []);
 
   return (
