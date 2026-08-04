@@ -27,12 +27,10 @@ import {
   Trash2,
   MessageSquare,
   Clock,
-  Share2,
   Layers,
   Users,
   Paperclip,
   File,
-  Copy,
 } from 'lucide-react';
 import { AGENTS as DEFAULT_AGENTS, Message, AgentId, Agent, Chat, Artifact, Attachment } from './types';
 import { getMultiAgentResponse, fetchHealth, type HealthStatus } from './services/aiClient';
@@ -83,8 +81,6 @@ export default function App() {
     };
   }, []);
 
-  const liveVoiceOk = Boolean(health?.liveVoiceAvailable);
-  const aiOnline = health?.aiOnline !== false && health !== null;
   const aiOffline = health === null || health.aiOnline === false;
 
   const [chats, setChats] = useState<Chat[]>(() => {
@@ -280,20 +276,6 @@ export default function App() {
     setChats((prev) =>
       prev.map((chat) => (chat.id === currentChatId ? { ...chat, messages: [] } : chat))
     );
-  };
-
-  const deleteMessage = (messageId: string) => {
-    setChats((prev) =>
-      prev.map((chat) =>
-        chat.id === currentChatId
-          ? { ...chat, messages: chat.messages.filter((m) => m.id !== messageId) }
-          : chat
-      )
-    );
-  };
-
-  const copyMessage = (content: string) => {
-    navigator.clipboard.writeText(content).catch(() => {});
   };
 
   const createNewChat = () => {
@@ -604,12 +586,6 @@ export default function App() {
                               {agents.find((a) => a.id === step.agentId)?.name || step.agentId}:
                             </span>
                             <span>{step.thought}</span>
-                            {step.delegatedTo && (
-                              <span className="flex items-center gap-1 text-[9px] text-primary">
-                                <ArrowRight className="w-2 h-2" />
-                                {step.delegatedTo}
-                              </span>
-                            )}
                           </div>
                         ))}
                       </div>
@@ -728,23 +704,13 @@ export default function App() {
                 >
                   <Mic className="h-5 w-5" strokeWidth={1.5} />
                 </button>
-                {liveVoiceOk ? (
-                  <button
-                    onClick={() => setShowLiveVoice(true)}
-                    className="p-2 px-4 text-sm font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-full border border-primary/30"
-                  >
-                    Go Live
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    title="Live Voice requires Gemini (AI_PROVIDER=gemini + GEMINI_API_KEY)"
-                    className="p-2 px-3 text-[10px] font-medium text-gray-500 bg-white/5 rounded-full border border-white/10 cursor-not-allowed"
-                    disabled
-                  >
-                    Live (Gemini)
-                  </button>
-                )}
+                <button
+                  onClick={() => setShowLiveVoice(true)}
+                  className="p-2 px-4 text-sm font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-full border border-primary/30"
+                  title="Free browser voice (SpeechRecognition + Ollama/Freebuff + speechSynthesis)"
+                >
+                  Go Live
+                </button>
                 <button
                   onClick={handleSend}
                   disabled={isReasoning || (!input.trim() && attachments.length === 0)}
@@ -759,7 +725,7 @@ export default function App() {
       </div>
 
       <AnimatePresence>
-        {showLiveVoice && liveVoiceOk && (
+        {showLiveVoice && (
           <LiveVoiceModal
             isOpen={showLiveVoice}
             onClose={() => setShowLiveVoice(false)}
@@ -799,6 +765,17 @@ export default function App() {
                 >
                   <option value="English">English</option>
                   <option value="Spanish">Spanish</option>
+                  <option value="French">French</option>
+                  <option value="German">German</option>
+                </select>
+                <select
+                  value={voiceSpeed}
+                  onChange={(e) => setVoiceSpeed(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+                >
+                  <option value="Slow">Slow</option>
+                  <option value="Normal">Normal</option>
+                  <option value="Fast">Fast</option>
                 </select>
                 <button
                   onClick={() => setShowVoiceSettings(false)}
