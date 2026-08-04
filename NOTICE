@@ -1,0 +1,17 @@
+Potso AI
+Copyright 2024-2026 Michael Aaron Matsobe
+
+This product includes software developed for the Potso AI project.
+Licensed under the Apache License, Version 2.0.
+
+Third-party components are used under their respective open-source licenses
+(as declared by each dependency in package.json / package-lock.json).
+Notable runtime ecosystems include:
+
+- React, Vite, Express, and related libraries (MIT / Apache-2.0 as applicable)
+- Ollama (MIT) when used as the local model runtime
+- Optional whisper.cpp and Piper when used for local speech (their upstream licenses apply)
+
+Model weights downloaded via Ollama or similar tools are subject to each
+model's own license (e.g. Llama, Qwen, Mistral community licenses). Operators
+must comply with those terms when distributing or serving model outputs.

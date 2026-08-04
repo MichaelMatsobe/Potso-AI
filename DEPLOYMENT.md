@@ -1,89 +1,47 @@
 # Deployment — Potso AI (free / open source)
 
-## Readiness status (dev/freebuff-provider)
+## Legal before you go live
 
-| Area | Status | Notes |
-|------|--------|-------|
-| Guest web chat | **Ready** | `/api/ai/chat` public, localStorage history |
-| Ollama AI | **Ready** | Default provider, no quotas |
-| Freebuff AI | **Optional** | `AI_PROVIDER=freebuff` |
-| Browser Live Voice | **Ready** | Web Speech API |
-| Local Whisper/Piper | **Optional** | Set `VOICE_*_URL` |
-| Production Docker | **Ready for self-host** | Compose includes Ollama |
-| Firebase auth/sync | **Optional** | Guest mode without it |
-| Mobile Expo | **Basic** | Guest chat; not store-ready |
-| Multi-tenant SaaS | **Not ready** | No rate limits, hardening |
-| Public internet harding | **Partial** | Add HTTPS, rate limits, CORS lockdown |
+1. Comply with [LICENSE](./LICENSE) (Apache-2.0) and [NOTICE](./NOTICE).
+2. Review [TERMS.md](./TERMS.md) and [PRIVACY.md](./PRIVACY.md); **adapt** them if you offer a public service under your own legal entity.
+3. Comply with **model weight licenses** for any Ollama models you distribute or serve.
+4. If processing personal data in the EU/UK/SA/etc., complete your own DPIA / operator obligations — templates in-repo are starting points only.
+5. Read [SECURITY.md](./SECURITY.md).
 
-**Verdict:** Ready for **self-hosted / private deployment** (LAN, VPS, Docker).  
-**Not** fully ready for large public multi-user production without extra security and ops work.
+Static pages for users: `/privacy.html`, `/terms.html` (from `public/`).
 
-## Quick self-host (recommended)
+## Readiness
+
+| Area | Status |
+|------|--------|
+| Guest web chat + Ollama | Ready |
+| Browser Live Voice | Ready |
+| Local Whisper/Piper | Optional |
+| Docker Compose + Ollama | Ready |
+| Firebase accounts | Optional |
+| Public multi-tenant hardening | Operator responsibility |
+
+## Self-host
 
 ```bash
 git checkout dev/freebuff-provider
-cp .env.example .env.local
-# AI_PROVIDER=ollama is default
-
 docker compose up -d --build
-# Pull a model once:
 docker compose exec ollama ollama pull llama3.2
-
-# App: http://localhost:8080  (API + static UI in production)
 curl -s http://localhost:8080/api/health
 ```
 
-After first model pull, open the UI and send a chat. Badge should show **AI Online · ollama**.
+Production container serves the built UI and API on **port 8080**.
 
-## Local dev (no Docker)
+## Environment
 
-```bash
-ollama pull llama3.2 && ollama serve
-cp .env.example .env.local
-npm install
-npm run dev
-# Web :3000 · API :8080
-npm test && npm run smoke
-```
+See [`.env.example`](./.env.example). Do **not** configure Gemini — unsupported on this branch.
 
-## Environment (production)
+## Production checklist
 
-| Variable | Required | Default |
-|----------|----------|---------|
-| `AI_PROVIDER` | No | `ollama` |
-| `OLLAMA_BASE_URL` | No | `http://127.0.0.1:11434/v1` |
-| `OLLAMA_MODEL` | No | `llama3.2` |
-| `ALLOWED_ORIGINS` | Yes in public | `*` in compose |
-| `VOICE_STT_URL` | No | unset = browser STT |
-| `VOICE_TTS_URL` | No | unset = browser TTS |
-| Firebase vars | No | guest mode |
-
-**Do not set Gemini keys** — not supported on this branch.
-
-## Production checklist before public traffic
-
-- [ ] HTTPS (Caddy / nginx / Traefik)
+- [ ] HTTPS
 - [ ] Restrict `ALLOWED_ORIGINS`
-- [ ] Rate-limit `/api/ai/chat` and `/api/voice/*`
-- [ ] Resource limits on Ollama (RAM/GPU)
-- [ ] Backups if Firebase enabled
+- [ ] Rate limits on AI/voice routes
+- [ ] Ollama not public without auth
+- [ ] Adapted Privacy/Terms with operator identity
 - [ ] Monitoring on `/api/health`
-- [ ] Do not expose Ollama port publicly without auth
-
-## Cloud notes
-
-| Target | Feasible? |
-|--------|-----------|
-| VPS + Docker Compose | Yes |
-| Home lab / LAN | Yes |
-| Cloud Run alone | Awkward — Ollama needs persistent GPU/CPU host |
-| Vercel frontend only | UI only; API+Ollama elsewhere |
-
-## API surface
-
-- `GET /api/health`
-- `POST /api/ai/chat`
-- `GET /api/voice/status`
-- `POST /api/voice/stt`
-- `POST /api/voice/tts`
-- Auth/chat routes if Firebase configured
+- [ ] Model license compliance

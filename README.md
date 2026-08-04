@@ -1,12 +1,27 @@
 # Potso AI
 
-Multi-agent cognition on **free open-source** stack: **Ollama** (default) or Freebuff.  
-No Gemini. No paid APIs.
+Multi-agent cognition on a **free open-source** stack: **Ollama** (default) or optional Freebuff.  
+No Gemini. No paid AI APIs in the default path.
 
+**License:** [Apache License 2.0](./LICENSE)  
 **Branch:** `dev/freebuff-provider`  
-**Deploy status:** Ready for **self-host** (Docker Compose + Ollama). Not hardened for large public SaaS yet — see [DEPLOYMENT.md](./DEPLOYMENT.md).
+**Deploy:** Ready for self-host — see [DEPLOYMENT.md](./DEPLOYMENT.md)
 
-## Quick start (dev)
+## Legal
+
+| Document | Purpose |
+|----------|---------|
+| [LICENSE](./LICENSE) | Apache-2.0 software license |
+| [NOTICE](./NOTICE) | Attribution / third-party notes |
+| [TERMS.md](./TERMS.md) | Terms of use (template) |
+| [PRIVACY.md](./PRIVACY.md) | Privacy notice (template) |
+| [SECURITY.md](./SECURITY.md) | Vulnerability reporting |
+
+Deployed instances also serve `/privacy.html` and `/terms.html`.
+
+> These documents are **not legal advice**. Self-hosters are typically the data controller for their instance and must adapt policies for their jurisdiction (e.g. GDPR, POPIA).
+
+## Quick start
 
 ```bash
 ollama pull llama3.2 && ollama serve
@@ -16,30 +31,22 @@ npm install && npm run dev
 ```
 
 - Web: http://localhost:3000  
-- Health: http://localhost:8080/api/health  
-- Tests: `npm test` · Smoke: `npm run smoke`
+- API health: http://localhost:8080/api/health  
+- Tests: `npm test`
 
-## Self-host (Docker)
+## Docker self-host
 
 ```bash
 docker compose up -d --build
 docker compose exec ollama ollama pull llama3.2
-# UI + API: http://localhost:8080
+# http://localhost:8080
 ```
-
-## Features
-
-| Feature | Stack |
-|---------|--------|
-| Chat | Ollama / Freebuff multi-agent JSON |
-| Go Live | Browser Web Speech, or Whisper + Piper if configured |
-| Guest mode | Works without Firebase |
-| Mobile | Expo guest chat (`mobile/`) |
 
 ## Docs
 
-- [DEPLOYMENT.md](./DEPLOYMENT.md) — readiness + ops
-- [docs/VOICE_LOCAL.md](./docs/VOICE_LOCAL.md) — Whisper / Piper
-- [docs/WEBRTC.md](./docs/WEBRTC.md) — streaming notes
+- [DEPLOYMENT.md](./DEPLOYMENT.md)
+- [FREEBUFF_SETUP.md](./FREEBUFF_SETUP.md) — providers
+- [docs/VOICE_LOCAL.md](./docs/VOICE_LOCAL.md)
+- [docs/WEBRTC.md](./docs/WEBRTC.md)
 
 Created by Michael Aaron Matsobe.
