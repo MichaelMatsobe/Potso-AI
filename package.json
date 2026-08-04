@@ -1,7 +1,7 @@
 {
   "name": "potso-ai",
   "private": true,
-  "version": "1.3.1",
+  "version": "1.3.2",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:web\" \"npm run dev:server\"",
@@ -9,7 +9,7 @@
     "dev:server": "tsx watch server.ts",
     "build": "npm run build:web && npm run build:server",
     "build:web": "vite build",
-    "build:server": "tsc server.ts --skipLibCheck",
+    "build:server": "echo \"server runs via tsx (no separate compile)\" && test -f server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
