@@ -1,11 +1,17 @@
 /**
- * Free voice mode — Web Speech API only (no Gemini, no paid APIs).
- * Flow: SpeechRecognition → POST /api/ai/chat (Ollama/Freebuff) → speechSynthesis
- * Limits: browser quality, no true barge-in, Chrome/Edge best support.
+ * Free voice mode — local Whisper/Piper when available, else Web Speech API.
+ * AI always via /api/ai/chat (Ollama / Freebuff). No paid services.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { Mic, MicOff, X, Loader2, Volume2 } from 'lucide-react';
+import {
+  fetchVoiceStatus,
+  localSttFromBlob,
+  localTtsToAudioUrl,
+  browserSpeak,
+  type VoiceStatus,
+} from '../services/voiceClient';
 
 interface LiveVoiceModalProps {
   isOpen: boolean;
@@ -44,90 +50,102 @@ export function LiveVoiceModal({
   const [error, setError] = useState<string | null>(null);
   const [userText, setUserText] = useState('');
   const [aiText, setAiText] = useState('');
-  const [supported, setSupported] = useState(true);
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus | null>(null);
+  const [recording, setRecording] = useState(false);
 
   const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
   const historyRef = useRef<Array<{ role: string; content: string }>>([]);
   const stoppedRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const langCode = LANG_MAP[language] || 'en-US';
   const rate = SPEED_MAP[speakingSpeed] ?? 1;
 
-  const speak = useCallback(
-    (text: string) =>
-      new Promise<void>((resolve) => {
-        if (!('speechSynthesis' in window)) {
-          resolve();
-          return;
+  const useLocalStt = Boolean(voiceStatus?.stt?.online);
+  const useLocalTts = Boolean(voiceStatus?.tts?.online);
+
+  const speakAnswer = useCallback(
+    async (text: string) => {
+      setSpeaking(true);
+      try {
+        if (useLocalTts) {
+          const url = await localTtsToAudioUrl(text);
+          await new Promise<void>((resolve) => {
+            const audio = new Audio(url);
+            audioRef.current = audio;
+            audio.onended = () => {
+              URL.revokeObjectURL(url);
+              resolve();
+            };
+            audio.onerror = () => {
+              URL.revokeObjectURL(url);
+              resolve();
+            };
+            audio.play().catch(() => resolve());
+          });
+        } else {
+          await browserSpeak(text, langCode, rate);
         }
-        window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = langCode;
-        u.rate = rate;
-        u.onstart = () => setSpeaking(true);
-        u.onend = () => {
-          setSpeaking(false);
-          resolve();
-        };
-        u.onerror = () => {
-          setSpeaking(false);
-          resolve();
-        };
-        window.speechSynthesis.speak(u);
-      }),
-    [langCode, rate]
+      } catch {
+        await browserSpeak(text, langCode, rate);
+      } finally {
+        setSpeaking(false);
+      }
+    },
+    [useLocalTts, langCode, rate]
   );
 
-  const askAi = useCallback(async (prompt: string) => {
-    setProcessing(true);
-    try {
-      const res = await fetch(`${API_URL}/ai/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: prompt,
-          history: historyRef.current.slice(-8),
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || err.error || `HTTP ${res.status}`);
+  const askAi = useCallback(
+    async (prompt: string) => {
+      setProcessing(true);
+      try {
+        const res = await fetch(`${API_URL}/ai/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: prompt,
+            history: historyRef.current.slice(-8),
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || err.error || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        const answer = data.answer || data.content || 'I had no response.';
+        historyRef.current.push({ role: 'user', content: prompt });
+        historyRef.current.push({ role: 'assistant', content: answer });
+        setAiText(answer);
+        await speakAnswer(answer);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
+        setAiText(`Error: ${msg}`);
+      } finally {
+        setProcessing(false);
       }
-      const data = await res.json();
-      const answer = data.answer || data.content || 'I had no response.';
-      historyRef.current.push({ role: 'user', content: prompt });
-      historyRef.current.push({ role: 'assistant', content: answer });
-      setAiText(answer);
-      await speak(answer);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(msg);
-      setAiText(`Error: ${msg}`);
-    } finally {
-      setProcessing(false);
-    }
-  }, [speak]);
+    },
+    [speakAnswer]
+  );
 
-  const startListening = useCallback(() => {
+  const startBrowserListening = useCallback(() => {
     const SR =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
-      setSupported(false);
-      setError('Speech recognition is not supported in this browser. Try Chrome or Edge.');
+      setError('Speech recognition not supported. Use Chrome/Edge or configure local Whisper.');
       return;
     }
-
     stoppedRef.current = false;
     const recognition = new SR();
     recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = langCode;
-
     recognition.onstart = () => {
       setListening(true);
       setError(null);
     };
-
     recognition.onresult = async (event: any) => {
       let interim = '';
       let final = '';
@@ -142,22 +160,19 @@ export function LiveVoiceModal({
         setListening(false);
         await askAi(final.trim());
         if (!stoppedRef.current) {
-          // Resume listening after answer
           try {
             recognition.start();
           } catch {
-            /* already started */
+            /* ignore */
           }
         }
       }
     };
-
     recognition.onerror = (event: any) => {
       if (event.error === 'no-speech' || event.error === 'aborted') return;
       setError(event.error || 'Recognition error');
       setListening(false);
     };
-
     recognition.onend = () => {
       setListening(false);
       if (!stoppedRef.current && !processing && !speaking) {
@@ -168,14 +183,71 @@ export function LiveVoiceModal({
         }
       }
     };
-
     recognitionRef.current = recognition;
     try {
       recognition.start();
-    } catch (e) {
+    } catch {
       setError('Could not start microphone.');
     }
   }, [langCode, askAi, processing, speaking]);
+
+  const stopLocalRecording = useCallback(async () => {
+    const rec = mediaRecorderRef.current;
+    if (!rec || rec.state === 'inactive') return;
+    await new Promise<void>((resolve) => {
+      rec.onstop = () => resolve();
+      rec.stop();
+    });
+    setRecording(false);
+    setListening(false);
+
+    const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' });
+    chunksRef.current = [];
+    if (blob.size < 1000) return;
+
+    setProcessing(true);
+    try {
+      const text = await localSttFromBlob(blob);
+      if (!text) {
+        setError('No speech detected');
+        return;
+      }
+      setUserText(text);
+      await askAi(text);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setProcessing(false);
+    }
+  }, [askAi]);
+
+  const startLocalRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : 'audio/webm';
+      const rec = new MediaRecorder(stream, { mimeType: mime });
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size) chunksRef.current.push(e.data);
+      };
+      mediaRecorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+      setListening(true);
+      setError(null);
+
+      // Auto-stop after 8s utterance window (push-to-talk style)
+      window.setTimeout(() => {
+        if (mediaRecorderRef.current?.state === 'recording') {
+          stopLocalRecording();
+        }
+      }, 8000);
+    } catch {
+      setError('Microphone permission denied');
+    }
+  }, [stopLocalRecording]);
 
   const stopAll = useCallback(() => {
     stoppedRef.current = true;
@@ -185,26 +257,54 @@ export function LiveVoiceModal({
       /* ignore */
     }
     recognitionRef.current = null;
+    if (mediaRecorderRef.current?.state === 'recording') {
+      try {
+        mediaRecorderRef.current.stream.getTracks().forEach((t) => t.stop());
+        mediaRecorderRef.current.stop();
+      } catch {
+        /* ignore */
+      }
+    }
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
     setListening(false);
+    setRecording(false);
     setSpeaking(false);
     setProcessing(false);
   }, []);
 
   useEffect(() => {
-    if (isOpen) {
-      historyRef.current = [];
-      setUserText('');
-      setAiText('');
-      setError(null);
-      startListening();
-    } else {
+    if (!isOpen) {
       stopAll();
+      return;
     }
+    historyRef.current = [];
+    setUserText('');
+    setAiText('');
+    setError(null);
+    stoppedRef.current = false;
+
+    (async () => {
+      const status = await fetchVoiceStatus();
+      setVoiceStatus(status);
+      if (status?.stt?.online) {
+        // Local STT: wait for user to tap mic (push-to-talk)
+      } else {
+        startBrowserListening();
+      }
+    })();
+
     return () => stopAll();
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen) return null;
+
+  const modeLabel = useLocalStt || useLocalTts
+    ? `Local ${useLocalStt ? 'Whisper' : ''}${useLocalStt && useLocalTts ? '+' : ''}${useLocalTts ? 'Piper' : ''} · free`
+    : 'Browser Web Speech · free';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -222,9 +322,7 @@ export function LiveVoiceModal({
 
         <div className="mb-6 text-center">
           <h2 className="text-xl font-bold text-white mb-1">Potso Live</h2>
-          <p className="text-xs text-gray-400">
-            Free browser voice · Ollama / Freebuff · no paid APIs
-          </p>
+          <p className="text-xs text-gray-400">{modeLabel}</p>
         </div>
 
         <div className="relative w-40 h-40 flex items-center justify-center mb-6">
@@ -258,13 +356,17 @@ export function LiveVoiceModal({
           {error ? (
             <p className="text-red-400 text-sm">{error}</p>
           ) : processing ? (
-            <p className="text-amber-400 text-sm animate-pulse">Thinking (local AI)...</p>
+            <p className="text-amber-400 text-sm animate-pulse">Thinking...</p>
           ) : speaking ? (
             <p className="text-emerald-400 text-sm">Speaking...</p>
           ) : listening ? (
-            <p className="text-gray-300 text-sm">Listening — speak now</p>
+            <p className="text-gray-300 text-sm">
+              {useLocalStt ? 'Recording (auto-stop 8s)...' : 'Listening — speak now'}
+            </p>
           ) : (
-            <p className="text-gray-500 text-sm">{supported ? 'Ready' : 'Unsupported browser'}</p>
+            <p className="text-gray-500 text-sm">
+              {useLocalStt ? 'Tap mic to record' : 'Ready'}
+            </p>
           )}
         </div>
 
@@ -287,22 +389,35 @@ export function LiveVoiceModal({
         </div>
 
         <div className="mt-6 flex gap-3">
-          <button
-            onClick={() => {
-              if (listening) {
-                try {
-                  recognitionRef.current?.stop();
-                } catch {
-                  /* ignore */
+          {useLocalStt ? (
+            <button
+              onClick={() => {
+                if (recording) stopLocalRecording();
+                else startLocalRecording();
+              }}
+              disabled={processing || speaking}
+              className="px-5 py-2 rounded-full bg-primary/20 text-primary border border-primary/40 text-sm font-medium disabled:opacity-50"
+            >
+              {recording ? 'Stop & send' : 'Record'}
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                if (listening) {
+                  try {
+                    recognitionRef.current?.stop();
+                  } catch {
+                    /* ignore */
+                  }
+                } else {
+                  startBrowserListening();
                 }
-              } else {
-                startListening();
-              }
-            }}
-            className="px-5 py-2 rounded-full bg-primary/20 text-primary border border-primary/40 text-sm font-medium"
-          >
-            {listening ? 'Pause mic' : 'Resume mic'}
-          </button>
+              }}
+              className="px-5 py-2 rounded-full bg-primary/20 text-primary border border-primary/40 text-sm font-medium"
+            >
+              {listening ? 'Pause mic' : 'Resume mic'}
+            </button>
+          )}
           <button
             onClick={onClose}
             className="px-5 py-2 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 text-sm font-medium"
