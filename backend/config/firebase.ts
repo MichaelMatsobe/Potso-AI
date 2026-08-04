@@ -5,26 +5,42 @@ import * as dotenv from 'dotenv';
 
 dotenv.config({ path: '.env.local' });
 
-// Initialize Firebase Admin SDK
+// Initialize Firebase Admin SDK (graceful when credentials are missing)
 const initializeFirebase = () => {
   if (admin.apps.length === 0) {
-    const firebase_config = {
-      type: 'service_account',
-      project_id: process.env.FIREBASE_PROJECT_ID || 'potso-ai',
-      private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-    };
+    try {
+      const serviceAccountPath = path.join(process.cwd(), 'serviceAccountKey.json');
+      let credential: admin.ServiceAccount | admin.credential.Credential | null = null;
 
-    // If service account JSON file exists, use it
-    const serviceAccountPath = path.join(process.cwd(), 'serviceAccountKey.json');
-    const serviceAccount = fs.existsSync(serviceAccountPath)
-      ? JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'))
-      : firebase_config;
+      if (fs.existsSync(serviceAccountPath)) {
+        const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
+        credential = admin.credential.cert(serviceAccount as admin.ServiceAccount);
+      } else if (
+        process.env.FIREBASE_PROJECT_ID &&
+        process.env.FIREBASE_CLIENT_EMAIL &&
+        process.env.FIREBASE_PRIVATE_KEY
+      ) {
+        credential = admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        } as admin.ServiceAccount);
+      }
 
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
-      databaseURL: process.env.FIREBASE_DATABASE_URL,
-    });
+      if (credential) {
+        admin.initializeApp({
+          credential,
+          databaseURL: process.env.FIREBASE_DATABASE_URL,
+        });
+        console.log('✅ Firebase Admin initialized');
+      } else {
+        console.warn(
+          '⚠️  Firebase credentials not found. Auth and Firestore routes will fail until configured.'
+        );
+      }
+    } catch (err) {
+      console.error('Firebase initialization error:', err);
+    }
   }
 
   return admin;
