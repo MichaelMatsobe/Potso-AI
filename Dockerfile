@@ -1,63 +1,39 @@
 # Build stage
 FROM node:20-alpine AS builder
-
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
 COPY tsconfig.json ./
-
-# Install dependencies
 RUN npm ci
-
-# Copy source code
 COPY src/ ./src/
 COPY backend/ ./backend/
 COPY public/ ./public/
 COPY index.html .
 COPY vite.config.ts .
 COPY server.ts .
-
-# Build web app
 RUN npm run build:web
 
 # Production stage
 FROM node:20-alpine
-
 WORKDIR /app
-
-# Install dumb-init to handle signals properly
 RUN apk add --no-cache dumb-init
-
-# Copy package files
 COPY package*.json ./
-
-# Install production dependencies only
-RUN npm ci --omit=dev
-
-# Copy built web app from builder
+# tsx needed to run TypeScript server without a separate compile step
+RUN npm ci --omit=dev && npm install tsx@4.21.0 --no-save
 COPY --from=builder /app/dist ./dist
-
-# Copy backend code
 COPY backend/ ./backend/
 COPY server.ts .
 COPY tsconfig.json .
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
+RUN addgroup -g 1001 -S nodejs && adduser -S potso -u 1001 -G nodejs
+USER potso
 
-USER nextjs
+ENV NODE_ENV=production
+ENV API_PORT=8080
+EXPOSE 8080
 
-# Expose ports
-EXPOSE 3000 8080
-
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8080/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
+  CMD wget -q -O - http://127.0.0.1:8080/api/health || exit 1
 
-# Use dumb-init to run Node.js
 ENTRYPOINT ["dumb-init", "--"]
-
-# Start server
-CMD ["node", "server.ts"]
+# In production, Express serves dist/ and listens on API_PORT
+CMD ["npx", "tsx", "server.ts"]

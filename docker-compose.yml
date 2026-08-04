@@ -1,31 +1,43 @@
-version: '3.9'
-
 services:
   potso-ai:
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"  # Web app
-      - "8080:8080"  # API server
+      - "8080:8080"
     environment:
-      NODE_ENV: "production"
+      NODE_ENV: production
       API_PORT: "8080"
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
-      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL}
-      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY}
-      FIREBASE_DATABASE_URL: ${FIREBASE_DATABASE_URL}
-      APP_URL: "http://localhost:3000"
-      API_URL: "http://localhost:8080/api"
-      ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:3001"
-    volumes:
-      - ./dist:/app/dist:ro
-      - ./backend:/app/backend:ro
+      AI_PROVIDER: ${AI_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      # Optional local voice (host network or sidecar)
+      VOICE_STT_URL: ${VOICE_STT_URL:-}
+      VOICE_TTS_URL: ${VOICE_TTS_URL:-}
+      # Optional Firebase (guest mode works without)
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:-}
+      FIREBASE_DATABASE_URL: ${FIREBASE_DATABASE_URL:-}
+    depends_on:
+      - ollama
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/health"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # Free open-source LLM runtime
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
