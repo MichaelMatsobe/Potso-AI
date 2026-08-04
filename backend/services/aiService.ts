@@ -1,20 +1,9 @@
 /**
  * Potso-AI unified AI service
- *
- * Priority for "open source + no quotas":
- *   1. Ollama / local OpenAI-compatible (default) — self-hosted open weights, unlimited
- *   2. Freebuff proxy — optional; free but regional limits exist
- *   3. Gemini — optional; requires API key
- *
- * Recommended open-weight models via Ollama:
- *   llama3.2, llama3.1, qwen2.5, qwen2.5-coder, deepseek-r1, mistral, phi3, gemma2
+ * Default: Ollama (open-source open weights, self-hosted, no quotas)
  */
 
 import { GoogleGenAI, Type } from "@google/genai";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface AIMessage {
   role: "user" | "model" | "assistant";
@@ -50,128 +39,38 @@ export interface MultiAgentResult {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Open-source local model catalog (no quotas when self-hosted)
-// ---------------------------------------------------------------------------
-
-export const OPEN_SOURCE_LOCAL_MODELS: Array<{
-  id: string;
-  label: string;
-  notes: string;
-  ollamaPull?: string;
-}> = [
-  {
-    id: "llama3.2",
-    label: "Llama 3.2",
-    notes: "Meta open weights — good general default",
-    ollamaPull: "llama3.2",
-  },
-  {
-    id: "llama3.1",
-    label: "Llama 3.1",
-    notes: "Stronger Llama variant",
-    ollamaPull: "llama3.1",
-  },
-  {
-    id: "qwen2.5",
-    label: "Qwen 2.5",
-    notes: "Alibaba open weights — strong multilingual",
-    ollamaPull: "qwen2.5",
-  },
-  {
-    id: "qwen2.5-coder",
-    label: "Qwen 2.5 Coder",
-    notes: "Code-specialized open weights",
-    ollamaPull: "qwen2.5-coder",
-  },
-  {
-    id: "deepseek-r1",
-    label: "DeepSeek R1",
-    notes: "Reasoning-focused open weights (if available in Ollama)",
-    ollamaPull: "deepseek-r1",
-  },
-  {
-    id: "mistral",
-    label: "Mistral",
-    notes: "Mistral open weights — efficient",
-    ollamaPull: "mistral",
-  },
-  {
-    id: "phi3",
-    label: "Phi-3",
-    notes: "Microsoft small open model — low RAM",
-    ollamaPull: "phi3",
-  },
-  {
-    id: "gemma2",
-    label: "Gemma 2",
-    notes: "Google open weights",
-    ollamaPull: "gemma2",
-  },
+export const OPEN_SOURCE_LOCAL_MODELS = [
+  { id: "llama3.2", label: "Llama 3.2", notes: "Good general default", ollamaPull: "llama3.2" },
+  { id: "llama3.1", label: "Llama 3.1", notes: "Stronger Llama", ollamaPull: "llama3.1" },
+  { id: "qwen2.5", label: "Qwen 2.5", notes: "Strong multilingual", ollamaPull: "qwen2.5" },
+  { id: "qwen2.5-coder", label: "Qwen 2.5 Coder", notes: "Code-focused", ollamaPull: "qwen2.5-coder" },
+  { id: "mistral", label: "Mistral", notes: "Efficient", ollamaPull: "mistral" },
+  { id: "phi3", label: "Phi-3", notes: "Low RAM", ollamaPull: "phi3" },
+  { id: "gemma2", label: "Gemma 2", notes: "Google open weights", ollamaPull: "gemma2" },
+  { id: "deepseek-r1", label: "DeepSeek R1", notes: "Reasoning (larger)", ollamaPull: "deepseek-r1" },
 ];
 
-/** Freebuff models — free but NOT quota-free / not fully open infrastructure */
-export const FREEBUFF_MODELS: Array<{ id: string; label: string; notes: string }> = [
-  { id: "deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro (Freebuff)", notes: "Freebuff-hosted; regional limits may apply" },
-  { id: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash (Freebuff)", notes: "Faster Freebuff option" },
-  { id: "minimax/minimax-m2.7", label: "MiniMax (Freebuff)", notes: "Freebuff-hosted" },
+export const FREEBUFF_MODELS = [
+  { id: "deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro (Freebuff)", notes: "Regional limits may apply" },
+  { id: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash (Freebuff)", notes: "Faster" },
+  { id: "minimax/minimax-m2.7", label: "MiniMax (Freebuff)", notes: "Hosted free" },
 ];
-
-// ---------------------------------------------------------------------------
-// Provider selection — Ollama (open source, no quotas) is default
-// ---------------------------------------------------------------------------
 
 export function getProvider(): "ollama" | "freebuff" | "gemini" {
   const explicit = (process.env.AI_PROVIDER || "").toLowerCase().trim();
   if (explicit === "gemini") return "gemini";
   if (explicit === "freebuff" || explicit === "openai") return "freebuff";
   if (explicit === "ollama" || explicit === "local") return "ollama";
-
-  // Auto-detect: prefer local open-source when Ollama is configured
   if (process.env.OLLAMA_BASE_URL) return "ollama";
   if (process.env.FREEBUFF_BASE_URL || process.env.FREEBUFF_MODEL) return "freebuff";
-
-  // Default: open-source local path (user installs Ollama)
   return "ollama";
 }
 
-const SYSTEM_PROMPT = `You are Potso, a South African multi-agent cognition system.
-Creator: Michael Aaron Matsobe.
-You run on open-source models (self-hosted when possible) with no usage quotas.
-
-Simulate collaboration between exactly these 4 agents:
-- Modisa — deep search and data retrieval
-- Tshepo — synthesis and cross-referencing
-- Kgakgamatso — technical audit and code analysis
-- Tlhaloganyo — narrative structure and readability
-
-Rules:
-1. Agents may produce shared artifacts (code, data, text).
-2. Agents MUST delegate sub-tasks when appropriate (use delegatedTo + action).
-3. Mark consensusReached true when agents agree.
-
-Respond with ONLY a valid JSON object. No markdown fences. No prose outside JSON.
-{
-  "reasoning": [
-    { "agentId": "modisa|tshepo|kgakgamatso|tlhaloganyo", "thought": "...", "delegatedTo": "optional", "action": "optional" }
-  ],
-  "artifacts": [
-    { "id": "string", "title": "string", "content": "string", "type": "code|data|text|image", "createdBy": "agentId" }
-  ],
-  "answer": "final answer for the user",
-  "tags": ["tag1", "tag2"],
-  "primaryAgent": "modisa|tshepo|kgakgamatso|tlhaloganyo",
-  "imagePrompt": "optional",
-  "consensusReached": true
-}
-
-- reasoning: 3-4 steps
-- tags: 2-3 tags
-- answer must be complete and helpful`;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const SYSTEM_PROMPT = `You are Potso, a South African multi-agent system (creator: Michael Aaron Matsobe).
+Simulate exactly 4 agents: Modisa (search), Tshepo (synthesis), Kgakgamatso (tech), Tlhaloganyo (narrative).
+Respond with ONLY valid JSON (no markdown fences, no extra text):
+{"reasoning":[{"agentId":"modisa|tshepo|kgakgamatso|tlhaloganyo","thought":"...","delegatedTo":"optional","action":"optional"}],"artifacts":[{"id":"string","title":"string","content":"string","type":"code|data|text","createdBy":"agentId"}],"answer":"complete helpful answer","tags":["t1","t2"],"primaryAgent":"tshepo","consensusReached":true}
+Use 3-4 reasoning steps. answer must always be useful.`;
 
 function extractJSON(text: string): any {
   if (!text || typeof text !== "string") return null;
@@ -187,6 +86,15 @@ function extractJSON(text: string): any {
   if (first !== -1 && last > first) {
     try {
       return JSON.parse(cleaned.slice(first, last + 1));
+    } catch {
+      /* continue */
+    }
+  }
+  // Fix common trailing-comma issues
+  if (first !== -1 && last > first) {
+    try {
+      const slice = cleaned.slice(first, last + 1).replace(/,\s*([}\]])/g, "$1");
+      return JSON.parse(slice);
     } catch {
       /* continue */
     }
@@ -256,9 +164,7 @@ function historyToOpenAIMessages(history: AIMessage[]): Array<{ role: string; co
     const texts: string[] = [];
     for (const part of msg.parts || []) {
       if (part.text) texts.push(part.text);
-      if (part.inlineData) {
-        texts.push(`[Attachment omitted: ${part.inlineData.mimeType}]`);
-      }
+      if (part.inlineData) texts.push(`[Attachment omitted: ${part.inlineData.mimeType}]`);
     }
     messages.push({ role, content: texts.join("\n").trim() || " " });
   }
@@ -271,25 +177,29 @@ async function openAICompatibleChat(opts: {
   model: string;
   messages: Array<{ role: string; content: string }>;
   timeoutMs?: number;
+  jsonMode?: boolean;
 }): Promise<string> {
   const url = `${opts.baseUrl.replace(/\/$/, "")}/chat/completions`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 120_000);
 
   try {
+    const body: Record<string, unknown> = {
+      model: opts.model,
+      messages: opts.messages,
+      temperature: 0.3,
+    };
+    if (opts.jsonMode !== false) {
+      body.response_format = { type: "json_object" };
+    }
+
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${opts.apiKey}`,
       },
-      body: JSON.stringify({
-        model: opts.model,
-        messages: opts.messages,
-        temperature: 0.35,
-        // Ollama often ignores response_format; we still request it when supported
-        response_format: { type: "json_object" },
-      }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
 
@@ -322,9 +232,22 @@ function buildMessages(prompt: string, history: AIMessage[]) {
   return messages;
 }
 
-// ---------------------------------------------------------------------------
-// Ollama / local open-source path (DEFAULT — no quotas)
-// ---------------------------------------------------------------------------
+/** Probe whether Ollama (or compatible) is reachable */
+export async function probeOllama(): Promise<{ ok: boolean; detail?: string }> {
+  const base = (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434/v1").replace(/\/$/, "");
+  // Prefer native Ollama tags endpoint
+  const native = base.replace(/\/v1$/, "");
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(`${native}/api/tags`, { signal: controller.signal });
+    clearTimeout(timer);
+    if (res.ok) return { ok: true };
+    return { ok: false, detail: `status ${res.status}` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : String(e) };
+  }
+}
 
 async function ollamaMultiAgentResponse(
   prompt: string,
@@ -337,7 +260,7 @@ async function ollamaMultiAgentResponse(
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  const candidates = [...new Set([primary, ...extras, ...OPEN_SOURCE_LOCAL_MODELS.map((m) => m.id)])];
+  const candidates = [...new Set([primary, ...extras])];
 
   const messages = buildMessages(prompt, history);
   const errors: string[] = [];
@@ -345,14 +268,37 @@ async function ollamaMultiAgentResponse(
   for (let i = 0; i < candidates.length; i++) {
     const model = candidates[i];
     try {
-      const content = await openAICompatibleChat({
+      // First try with json mode
+      let content = await openAICompatibleChat({
         baseUrl,
         apiKey: process.env.OLLAMA_API_KEY || "ollama",
         model,
         messages,
+        jsonMode: true,
       });
 
-      const parsed = extractJSON(content);
+      let parsed = extractJSON(content);
+
+      // Retry once with explicit JSON instruction if parse failed
+      if (!parsed && content.trim()) {
+        const retryMessages = [
+          ...messages,
+          {
+            role: "user",
+            content:
+              "Your previous reply was not valid JSON. Reply again with ONLY the JSON object, no markdown.",
+          },
+        ];
+        content = await openAICompatibleChat({
+          baseUrl,
+          apiKey: process.env.OLLAMA_API_KEY || "ollama",
+          model,
+          messages: retryMessages,
+          jsonMode: false,
+        });
+        parsed = extractJSON(content);
+      }
+
       if (parsed) {
         return normalizeResult(parsed, {
           provider: "ollama",
@@ -370,10 +316,10 @@ async function ollamaMultiAgentResponse(
             reasoning: [
               {
                 agentId: "tshepo",
-                thought: `Local model ${model} returned non-JSON; delivering raw text.`,
+                thought: `Local model ${model} returned prose; delivering as answer.`,
               },
             ],
-            tags: ["Ollama", "OpenSource", "SoftFallback"],
+            tags: ["Ollama", "OpenSource"],
             primaryAgent: "tshepo",
             consensusReached: false,
             artifacts: [],
@@ -392,18 +338,14 @@ async function ollamaMultiAgentResponse(
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`${model}: ${msg}`);
-      console.warn(`[Ollama] model failed: ${model} → ${msg}`);
+      console.warn(`[Ollama] ${model} failed: ${msg}`);
     }
   }
 
   throw new Error(
-    `All local models failed. Is Ollama running? (ollama serve). Attempts: ${errors.join(" | ")}`
+    `All local models failed. Run: ollama pull ${primary} && ollama serve. Details: ${errors.join(" | ")}`
   );
 }
-
-// ---------------------------------------------------------------------------
-// Freebuff path (optional — free but may have regional limits)
-// ---------------------------------------------------------------------------
 
 async function freebuffMultiAgentResponse(
   prompt: string,
@@ -416,8 +358,7 @@ async function freebuffMultiAgentResponse(
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  const candidates = [...new Set([primary, ...extras, ...FREEBUFF_MODELS.map((m) => m.id)])];
-
+  const candidates = [...new Set([primary, ...extras])];
   const messages = buildMessages(prompt, history);
   const errors: string[] = [];
 
@@ -430,7 +371,6 @@ async function freebuffMultiAgentResponse(
         model,
         messages,
       });
-
       const parsed = extractJSON(content);
       if (parsed) {
         return normalizeResult(parsed, {
@@ -441,13 +381,12 @@ async function freebuffMultiAgentResponse(
           noQuota: false,
         });
       }
-
-      if (typeof content === "string" && content.trim()) {
+      if (content.trim()) {
         return normalizeResult(
           {
             answer: content.trim(),
-            reasoning: [{ agentId: "tshepo", thought: `Freebuff ${model} returned non-JSON.` }],
-            tags: ["Freebuff", "SoftFallback"],
+            reasoning: [{ agentId: "tshepo", thought: "Freebuff returned prose." }],
+            tags: ["Freebuff"],
             primaryAgent: "tshepo",
             consensusReached: false,
             artifacts: [],
@@ -455,28 +394,20 @@ async function freebuffMultiAgentResponse(
           { provider: "freebuff", model, fallbackUsed: i > 0, openSource: false, noQuota: false }
         );
       }
-
       errors.push(`${model}: empty`);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      errors.push(`${model}: ${msg}`);
-      console.warn(`[Freebuff] model failed: ${model} → ${msg}`);
+      errors.push(`${model}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
-  // Fall back to local Ollama if available
   try {
     return await ollamaMultiAgentResponse(prompt, history, true);
   } catch (e) {
-    errors.push(`ollama-fallback: ${e instanceof Error ? e.message : String(e)}`);
+    errors.push(`ollama: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  throw new Error(`Freebuff failed and local fallback unavailable. ${errors.join(" | ")}`);
+  throw new Error(`Freebuff failed. ${errors.join(" | ")}`);
 }
-
-// ---------------------------------------------------------------------------
-// Optional Gemini
-// ---------------------------------------------------------------------------
 
 const GEMINI_SCHEMA = {
   type: Type.OBJECT,
@@ -528,7 +459,7 @@ async function geminiMultiAgentResponse(
   const slidingWindow = history.slice(-10);
 
   const response = await ai.models.generateContent({
-    model: process.env.GEMINI_MODEL || "gemini-3-flash-preview",
+    model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
     contents: slidingWindow as any,
     config: {
       systemInstruction: SYSTEM_PROMPT,
@@ -542,15 +473,11 @@ async function geminiMultiAgentResponse(
   const parsed = extractJSON(text);
   return normalizeResult(parsed || {}, {
     provider: "gemini",
-    model: process.env.GEMINI_MODEL || "gemini-3-flash-preview",
+    model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
     openSource: false,
     noQuota: false,
   });
 }
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
 export async function getMultiAgentResponse(
   prompt: string,
@@ -572,12 +499,17 @@ export async function getMultiAgentResponse(
         },
       ],
       answer:
-        "I encountered an error. For open-source unlimited use: install Ollama (https://ollama.com), run `ollama pull llama3.2` and `ollama serve`, then set OLLAMA_BASE_URL=http://127.0.0.1:11434/v1 in .env.local.",
-      tags: ["Error", provider, "OpenSource"],
+        "I could not reach the AI backend. For open-source unlimited use: install Ollama (https://ollama.com), run `ollama pull llama3.2` and `ollama serve`, then restart the API.",
+      tags: ["Error", provider],
       primaryAgent: "tshepo",
       artifacts: [],
       consensusReached: false,
-      _meta: { provider, model: "none", openSource: provider === "ollama", noQuota: provider === "ollama" },
+      _meta: {
+        provider,
+        model: "none",
+        openSource: provider === "ollama",
+        noQuota: provider === "ollama",
+      },
     };
   }
 }
@@ -590,7 +522,6 @@ export function listFreebuffModels() {
   return FREEBUFF_MODELS;
 }
 
-/** @deprecated use listOpenSourceModels */
 export function listFreeModels() {
   return OPEN_SOURCE_LOCAL_MODELS.map((m) => ({
     id: m.id,

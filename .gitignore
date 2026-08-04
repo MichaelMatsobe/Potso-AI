@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+grep_results.txt
+serviceAccountKey.json
+*.local

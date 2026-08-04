@@ -3,9 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Potso</title>
+    <meta name="theme-color" content="#13c8ec" />
+    <meta name="description" content="Potso AI — multi-agent open-source cognition" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>Potso AI</title>
     <script>
-      // Protection against libraries trying to overwrite window.fetch
       (function() {
         const nativeFetch = window.fetch;
         try {
@@ -14,11 +16,7 @@
             set: () => { console.warn('Blocked attempt to overwrite window.fetch'); },
             configurable: true
           });
-        } catch (e) {
-          console.error('Failed to protect window.fetch', e);
-        }
-        
-        // Define a safe 'global' object that is NOT window
+        } catch (e) {}
         window.global = window.global || {
           fetch: nativeFetch.bind(window),
           Headers: window.Headers,
@@ -36,4 +34,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

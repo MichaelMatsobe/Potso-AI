@@ -1,0 +1,11 @@
+{
+  "name": "Potso AI",
+  "short_name": "Potso",
+  "description": "Multi-agent open-source AI cognition",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#13c8ec",
+  "lang": "en",
+  "icons": []
+}

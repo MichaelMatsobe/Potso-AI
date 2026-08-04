@@ -1,10 +1,6 @@
 import { Message } from '../types';
-import { getMultiAgentResponse as viaPublicAi } from './geminiService';
+import { getMultiAgentResponse as viaPublicAi } from './aiClient';
 
-/**
- * Prefer public /api/ai/chat (works without Firebase).
- * Authenticated chat persistence still available via /api/chat/* when Firebase is configured.
- */
 export async function getMultiAgentResponse(
   prompt: string,
   history: Message[] = []
