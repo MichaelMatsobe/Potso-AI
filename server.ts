@@ -9,16 +9,15 @@ import authRoutes from './backend/routes/auth.js';
 import aiRoutes from './backend/routes/ai.js';
 import voiceRoutes from './backend/routes/voice.js';
 import dsarRoutes from './backend/routes/dsar.js';
-import {
-  getProvider,
-  probeOllama,
-} from './backend/services/aiService.js';
+import adminRoutes from './backend/routes/admin.js';
+import { getProvider, probeOllama } from './backend/services/aiService.js';
 import { isLocalVoiceConfigured, probeLocalVoice } from './backend/services/voiceLocal.js';
 import {
   securityHeaders,
   rateLimitMiddleware,
   apiKeyMiddleware,
 } from './backend/middleware/accessControl.js';
+import { startMaintenanceScheduler } from './backend/services/maintenance.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -81,16 +80,16 @@ app.get('/api/health', async (_req, res) => {
       apiKeyRequired: Boolean(process.env.API_ACCESS_KEY),
       rateLimitEnabled: process.env.RATE_LIMIT_DISABLED !== 'true',
     },
-    dsar: {
-      enabled: true,
-      endpoints: ['POST /api/dsar/request', 'GET /api/dsar/:id', 'GET /api/dsar/:id/export'],
+    dsar: { enabled: true },
+    maintenance: {
+      autoPurge: process.env.RETENTION_AUTO_PURGE === 'true',
     },
     paidServices: false,
     endpoints: {
-      publicAiChat: 'POST /api/ai/chat',
-      voiceStatus: 'GET /api/voice/status',
-      dsarRequest: 'POST /api/dsar/request',
       health: 'GET /api/health',
+      aiChat: 'POST /api/ai/chat',
+      dsar: 'POST /api/dsar/request',
+      adminMaintenance: 'POST /api/admin/maintenance',
     },
   });
 });
@@ -98,6 +97,7 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/ai', rateLimitMiddleware, apiKeyMiddleware, aiRoutes);
 app.use('/api/voice', rateLimitMiddleware, apiKeyMiddleware, voiceRoutes);
 app.use('/api/dsar', rateLimitMiddleware, dsarRoutes);
+app.use('/api/admin', rateLimitMiddleware, adminRoutes);
 app.use('/api/auth', rateLimitMiddleware, authRoutes);
 app.use('/api/chat', rateLimitMiddleware, apiKeyMiddleware, chatRoutes);
 
@@ -113,13 +113,12 @@ async function startServer() {
     });
   }
 
+  startMaintenanceScheduler();
+
   app.listen(API_PORT, '0.0.0.0', () => {
     console.log(`🚀 API  http://localhost:${API_PORT}`);
     console.log(`💚 Health http://localhost:${API_PORT}/api/health`);
-    console.log(`📋 DSAR POST http://localhost:${API_PORT}/api/dsar/request`);
-    console.log(
-      `🔐 API key ${process.env.API_ACCESS_KEY ? 'REQUIRED on AI/voice/chat' : 'optional'}`
-    );
+    console.log(`📋 DSAR / Admin maintenance enabled`);
     console.log(`🧠 Provider ${getProvider()}`);
     console.log(`🔥 Firebase ${isFirebaseReady() ? 'ready' : 'guest mode'}`);
   });
