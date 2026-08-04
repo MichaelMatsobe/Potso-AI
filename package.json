@@ -1,7 +1,7 @@
 {
   "name": "potso-ai",
   "private": true,
-  "version": "1.2.1",
+  "version": "1.3.0",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:web\" \"npm run dev:server\"",
@@ -17,6 +17,7 @@
     "test": "node tests/run-all.mjs",
     "test:unit": "node tests/unit/jsonExtract.test.mjs && node tests/unit/voiceLocal.test.mjs",
     "test:perf": "node tests/perf/latency.bench.mjs",
+    "maintenance": "node scripts/maintenance.mjs",
     "docker:build": "docker build -t potso-ai:latest .",
     "docker:run": "docker run -p 3000:3000 -p 8080:8080 --env-file .env.local potso-ai:latest"
   },
