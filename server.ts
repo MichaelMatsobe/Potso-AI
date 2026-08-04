@@ -7,22 +7,19 @@ import { fileURLToPath } from "url";
 import initializeFirebase from "./backend/config/firebase.js";
 import chatRoutes from "./backend/routes/chat.js";
 import authRoutes from "./backend/routes/auth.js";
-import { getProvider } from "./backend/services/aiService.js";
+import { getProvider, listFreeModels } from "./backend/services/aiService.js";
 
 dotenv.config({ path: ".env.local" });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-// Initialize Firebase
 initializeFirebase();
 
-// Middleware
 app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(",") || "*" }));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Health check endpoint
 app.get("/api/health", (req, res) => {
   let provider = "unknown";
   try {
@@ -34,16 +31,17 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     timestamp: new Date().toISOString(),
     aiProvider: provider,
-    freebuffBaseUrl: process.env.FREEBUFF_BASE_URL || null,
-    freebuffModel: process.env.FREEBUFF_MODEL || null,
+    freebuffBaseUrl: process.env.FREEBUFF_BASE_URL || "http://127.0.0.1:8000/v1",
+    freebuffModel: process.env.FREEBUFF_MODEL || "deepseek/deepseek-v4-pro",
+    ollamaBaseUrl: process.env.OLLAMA_BASE_URL || null,
+    freeModels: listFreeModels(),
+    note: "Freebuff is the primary agent. No Gemini API key required.",
   });
 });
 
-// API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/chat", chatRoutes);
 
-// Vite dev middleware or static files
 async function startServer() {
   const API_PORT = parseInt(process.env.API_PORT || "8080", 10);
   const isDev = process.env.NODE_ENV !== "production";
@@ -66,7 +64,8 @@ async function startServer() {
     console.log(`🚀 API Server running on http://localhost:${API_PORT}`);
     console.log(`🌍 CORS enabled for: ${process.env.ALLOWED_ORIGINS || "*"}`);
     try {
-      console.log(`🤖 AI provider: ${getProvider()}`);
+      console.log(`🤖 AI provider (in charge): ${getProvider()}`);
+      console.log(`📋 Free models catalog: ${listFreeModels().map((m) => m.id).join(", ")}`);
     } catch {
       /* ignore */
     }

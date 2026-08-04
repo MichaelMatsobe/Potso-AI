@@ -1,102 +1,134 @@
-# Freebuff Provider Setup (dev/freebuff-provider)
+# Freebuff-first setup (replaces Gemini API key)
 
-This branch adds a **Freebuff** AI backend path so Potso-AI can run **without a Gemini API key**.
+**Freebuff is the agent in charge.** Potso-AI does **not** need a Google Gemini API key.
 
-Freebuff itself is a free CLI coding agent. Potso-AI talks to it through an **OpenAI-compatible HTTP proxy** that community projects expose (`/v1/chat/completions`).
-
-> Important: Freebuff is **not** Gemini. Structured multi-agent JSON is prompt-driven (not schema-enforced). Image generation is not available on the Freebuff path. Expect good but not identical behaviour.
-
----
-
-## 1. Start a Freebuff OpenAI-compatible proxy
-
-Pick one community proxy and run it locally. Examples:
-
-### Option A — freebuff2api / Freebuff2API style
-
-1. Get a Freebuff auth token:
-   - Install CLI: `npm install -g freebuff`
-   - Run `freebuff` once and complete login, **or**
-   - Use a web token page used by the proxy project you chose.
-2. Configure the proxy with your token (see that project's README).
-3. Start the proxy so it listens on e.g. `http://127.0.0.1:8000`.
-
-Common model IDs (depends on proxy):
-
-- `deepseek/deepseek-v4-pro`
-- `deepseek/deepseek-v4-flash`
-- `minimax/minimax-m2.7`
-- others listed by `GET /v1/models`
-
-### Option B — freebuff-gateway / freebuff-proxy
-
-Follow the project's README. Point Potso-AI at whatever host/port exposes `/v1/chat/completions`.
+Freebuff is a free CLI coding agent (DeepSeek V4, MiniMax, Kimi, MiMo, GLM, etc.).  
+Potso-AI talks to it through a local **OpenAI-compatible proxy** (`/v1/chat/completions`).
 
 ---
 
-## 2. Configure Potso-AI
+## Quick test (5 minutes)
+
+### 1. Freebuff proxy
 
 ```bash
+# Get a Freebuff token
+npm install -g freebuff
+freebuff   # complete login once
+# Token is stored under ~/.config/manicode/credentials.json
+# Or use https://freebuff.llm.pm (or your proxy project's token page)
+```
+
+Run any OpenAI-compatible Freebuff proxy, for example:
+
+| Proxy | Notes |
+|-------|--------|
+| [Quorinex/Freebuff2API](https://github.com/Quorinex/Freebuff2API) | Docker-ready, multi-token rotation |
+| [XxxXTeam/freebuff2api](https://github.com/XxxXTeam/freebuff2api) | Python / uv |
+| freebuff-gateway / freebuff-proxy | Community alternatives |
+
+Point it at port **8000** (or update `FREEBUFF_BASE_URL`).
+
+### 2. Potso-AI
+
+```bash
+git checkout dev/freebuff-provider
 cp .env.example .env.local
-```
-
-Set at least:
-
-```env
-AI_PROVIDER=freebuff
-FREEBUFF_BASE_URL=http://127.0.0.1:8000/v1
-FREEBUFF_API_KEY=freebuff
-FREEBUFF_MODEL=deepseek/deepseek-v4-pro
-```
-
-Keep your existing Firebase / OAuth values.
-
----
-
-## 3. Run Potso-AI
-
-```bash
+# edit .env.local — at minimum Freebuff + Firebase values
 npm install
 npm run dev
 ```
 
-- Web: http://localhost:3000  
-- API: http://localhost:8080  
-- Health: http://localhost:8080/api/health
+### 3. Verify
 
-Send a chat message. You should get multi-agent style reasoning + answer from Freebuff.
+```bash
+curl -s http://localhost:8080/api/health | jq
+```
+
+Expect:
+
+```json
+{
+  "status": "ok",
+  "aiProvider": "freebuff",
+  "freebuffBaseUrl": "http://127.0.0.1:8000/v1",
+  "freeModels": [ ... catalog ... ],
+  "note": "Freebuff is the primary agent. No Gemini API key required."
+}
+```
+
+Open http://localhost:3000 and send a chat message.
 
 ---
 
-## 4. Switch back to Gemini anytime
+## Free model catalog (via Freebuff proxy)
+
+| Model ID | Role |
+|----------|------|
+| `deepseek/deepseek-v4-pro` | Default — strongest reasoning |
+| `deepseek/deepseek-v4-flash` | Faster / limited-mode |
+| `minimax/minimax-m2.7` | Speed |
+| `moonshotai/kimi-k2.6` | Long context |
+| `google/gemini-3.1-flash-lite-preview` | Freebuff-internal Gemini-lite agent path (still no Google key) |
+
+Failover: set `FREEBUFF_FALLBACK_MODELS=deepseek/deepseek-v4-flash,minimax/minimax-m2.7`  
+The service tries models in order until one succeeds.
+
+---
+
+## Optional: fully local free (Ollama)
+
+```env
+OLLAMA_BASE_URL=http://127.0.0.1:11434/v1
+OLLAMA_MODEL=llama3.2
+```
+
+If Freebuff is down, Potso-AI falls back to Ollama automatically when `OLLAMA_BASE_URL` is set.  
+Or force with `AI_PROVIDER=ollama`.
+
+---
+
+## Free CLI landscape (2026) — why Freebuff is primary
+
+| Tool | Truly free inference? | Fits Potso chat API? |
+|------|----------------------|----------------------|
+| **Freebuff** | Yes (ad-supported frontier models) | Yes via OpenAI proxy |
+| OpenCode | Tool free; models usually BYOK (some Zen free models) | Possible with BYOK endpoint |
+| Aider | Tool free; needs Ollama or API key | CLI only, not a chat API |
+| Goose / Cline | Tool free; BYOK or local | IDE/CLI oriented |
+| Gemini CLI / Antigravity | Google free tier (quota / may change) | Different stack; requires Google account |
+| Ollama + any agent | Yes if you run models locally | Yes as `/v1` fallback |
+
+**Design choice:** Freebuff remains the agent-in-charge for Potso because it is the only widely available **no-key frontier** stack that community proxies expose as OpenAI chat completions. Other free CLIs are documented here for completeness; they are not required.
+
+---
+
+## Switch back to Gemini (optional)
 
 ```env
 AI_PROVIDER=gemini
-GEMINI_API_KEY=your-key
+GEMINI_API_KEY=...
 ```
-
-Restart the server. No code change required.
 
 ---
 
-## 5. Troubleshooting
+## Troubleshooting
 
-| Symptom | Check |
-|--------|--------|
-| "Freebuff API 404/connection refused" | Proxy not running, or wrong `FREEBUFF_BASE_URL` (must include `/v1` if the proxy serves under that prefix) |
-| Empty / non-JSON answers | Model ignored JSON instructions; try another model or lower temperature (already 0.4). Soft fallback still shows raw text. |
-| Auth errors from proxy | Set a valid `FREEBUFF_API_KEY` / Freebuff token as required by your proxy |
-| Rate limits / limited mode | Freebuff has regional limits and fair-use constraints |
-| Attachments | Freebuff path omits binary attachments (noted in prompt). Prefer text-only while testing. |
+| Issue | Fix |
+|-------|-----|
+| Connection refused | Start Freebuff proxy; check `FREEBUFF_BASE_URL` includes `/v1` |
+| 401 / auth | Set valid Freebuff token as `FREEBUFF_API_KEY` / proxy `AUTH_TOKENS` |
+| Empty / non-JSON answers | Soft fallback still shows text; try another model in catalog |
+| Rate limits | Freebuff limited mode outside supported regions; rotate tokens or use Ollama |
+| Attachments | Binary attachments are skipped on Freebuff path |
 
 ---
 
-## Architecture note
+## Architecture
 
 ```
-React UI → Express /api/chat → backend/services/aiService.ts
-                                  ├─ freebuff → HTTP OpenAI-compatible proxy → Freebuff models
-                                  └─ gemini   → @google/genai SDK
+UI → Express /api/chat → aiService
+                           ├─ freebuff (primary) → local OpenAI-compatible proxy → Freebuff models
+                           ├─ ollama (optional auto-fallback)
+                           └─ gemini (explicit override only)
 ```
-
-`backend/services/geminiService.ts` is a thin re-export for backward compatibility.
