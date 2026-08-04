@@ -8,10 +8,9 @@ import chatRoutes from './backend/routes/chat.js';
 import authRoutes from './backend/routes/auth.js';
 import aiRoutes from './backend/routes/ai.js';
 import voiceRoutes from './backend/routes/voice.js';
+import dsarRoutes from './backend/routes/dsar.js';
 import {
   getProvider,
-  listOpenSourceModels,
-  listFreebuffModels,
   probeOllama,
 } from './backend/services/aiService.js';
 import { isLocalVoiceConfigured, probeLocalVoice } from './backend/services/voiceLocal.js';
@@ -43,7 +42,6 @@ app.use(securityHeaders);
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
 
-// Health is public (for load balancers) but does not expose secrets
 app.get('/api/health', async (_req, res) => {
   let provider: 'ollama' | 'freebuff' = 'ollama';
   try {
@@ -83,18 +81,23 @@ app.get('/api/health', async (_req, res) => {
       apiKeyRequired: Boolean(process.env.API_ACCESS_KEY),
       rateLimitEnabled: process.env.RATE_LIMIT_DISABLED !== 'true',
     },
+    dsar: {
+      enabled: true,
+      endpoints: ['POST /api/dsar/request', 'GET /api/dsar/:id', 'GET /api/dsar/:id/export'],
+    },
     paidServices: false,
     endpoints: {
       publicAiChat: 'POST /api/ai/chat',
       voiceStatus: 'GET /api/voice/status',
+      dsarRequest: 'POST /api/dsar/request',
       health: 'GET /api/health',
     },
   });
 });
 
-// Sensitive routes: rate limit + optional API key
 app.use('/api/ai', rateLimitMiddleware, apiKeyMiddleware, aiRoutes);
 app.use('/api/voice', rateLimitMiddleware, apiKeyMiddleware, voiceRoutes);
+app.use('/api/dsar', rateLimitMiddleware, dsarRoutes);
 app.use('/api/auth', rateLimitMiddleware, authRoutes);
 app.use('/api/chat', rateLimitMiddleware, apiKeyMiddleware, chatRoutes);
 
@@ -113,8 +116,9 @@ async function startServer() {
   app.listen(API_PORT, '0.0.0.0', () => {
     console.log(`🚀 API  http://localhost:${API_PORT}`);
     console.log(`💚 Health http://localhost:${API_PORT}/api/health`);
+    console.log(`📋 DSAR POST http://localhost:${API_PORT}/api/dsar/request`);
     console.log(
-      `🔐 API key ${process.env.API_ACCESS_KEY ? 'REQUIRED' : 'optional (set API_ACCESS_KEY for production)'}`
+      `🔐 API key ${process.env.API_ACCESS_KEY ? 'REQUIRED on AI/voice/chat' : 'optional'}`
     );
     console.log(`🧠 Provider ${getProvider()}`);
     console.log(`🔥 Firebase ${isFirebaseReady() ? 'ready' : 'guest mode'}`);
