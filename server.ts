@@ -10,7 +10,13 @@ import aiRoutes from './backend/routes/ai.js';
 import voiceRoutes from './backend/routes/voice.js';
 import dsarRoutes from './backend/routes/dsar.js';
 import adminRoutes from './backend/routes/admin.js';
-import { getProvider, probeOllama } from './backend/services/aiService.js';
+import {
+  getProvider,
+  getProviderMode,
+  isFreebuffConfigured,
+  probeOllama,
+  probeFreebuff,
+} from './backend/services/aiService.js';
 import { isLocalVoiceConfigured, probeLocalVoice } from './backend/services/voiceLocal.js';
 import {
   securityHeaders,
@@ -42,17 +48,20 @@ app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
 
 app.get('/api/health', async (_req, res) => {
-  let provider: 'ollama' | 'freebuff' = 'ollama';
-  try {
-    provider = getProvider();
-  } catch {
-    /* ignore */
-  }
+  const mode = getProviderMode();
+  const provider = getProvider();
 
-  let ollama: { ok: boolean; detail?: string } = { ok: false, detail: 'not checked' };
-  if (provider === 'ollama') {
-    ollama = await probeOllama();
-  }
+  const ollama = await probeOllama();
+  const freebuffConfigured = isFreebuffConfigured();
+  const freebuff = freebuffConfigured
+    ? await probeFreebuff()
+    : { ok: false, detail: 'not configured' };
+
+  // Hybrid: online if either backend works; single-mode: that backend only
+  let aiOnline = false;
+  if (mode === 'ollama') aiOnline = ollama.ok;
+  else if (mode === 'freebuff') aiOnline = freebuff.ok || ollama.ok;
+  else aiOnline = ollama.ok || freebuff.ok;
 
   const voiceConfigured = isLocalVoiceConfigured();
   const voice = voiceConfigured
@@ -60,13 +69,20 @@ app.get('/api/health', async (_req, res) => {
     : { stt: false, tts: false, detail: 'unconfigured' };
 
   res.json({
-    status: provider === 'ollama' ? (ollama.ok ? 'ok' : 'degraded') : 'ok',
+    status: aiOnline ? 'ok' : 'degraded',
     timestamp: new Date().toISOString(),
     aiProvider: provider,
-    openSource: provider === 'ollama',
-    noQuota: provider === 'ollama',
-    aiOnline: provider === 'ollama' ? ollama.ok : true,
-    ollama: { ok: ollama.ok },
+    aiMode: mode,
+    hybrid: mode === 'auto' || mode === 'hybrid',
+    openSource: ollama.ok || mode === 'ollama' || mode === 'auto',
+    noQuota: ollama.ok,
+    aiOnline,
+    ollama: { ok: ollama.ok, detail: ollama.detail },
+    freebuff: {
+      configured: freebuffConfigured,
+      ok: freebuff.ok,
+      detail: freebuff.detail,
+    },
     firebaseReady: isFirebaseReady(),
     guestMode: true,
     liveVoiceAvailable: true,
@@ -119,7 +135,7 @@ async function startServer() {
     console.log(`🚀 API  http://localhost:${API_PORT}`);
     console.log(`💚 Health http://localhost:${API_PORT}/api/health`);
     console.log(`📋 DSAR / Admin maintenance enabled`);
-    console.log(`🧠 Provider ${getProvider()}`);
+    console.log(`🧠 Mode ${getProviderMode()} (label ${getProvider()})`);
     console.log(`🔥 Firebase ${isFirebaseReady() ? 'ready' : 'guest mode'}`);
   });
 }
