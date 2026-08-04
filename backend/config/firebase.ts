@@ -47,7 +47,17 @@ const initializeFirebase = () => {
 };
 
 export const getFirebaseAdmin = () => initializeFirebase();
-export const getFirestore = () => admin.firestore();
-export const getAuth = () => admin.auth();
+export const getFirestore = () => {
+  if (!admin.apps.length) {
+    throw new Error("Firebase is not configured. Add serviceAccountKey.json or FIREBASE_* env vars.");
+  }
+  return admin.firestore();
+};
+export const getAuth = () => {
+  if (!admin.apps.length) {
+    throw new Error("Firebase is not configured. Add serviceAccountKey.json or FIREBASE_* env vars.");
+  }
+  return admin.auth();
+};
 
 export default initializeFirebase;

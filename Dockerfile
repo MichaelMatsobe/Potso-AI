@@ -13,7 +13,8 @@ RUN npm ci
 COPY src/ ./src/
 COPY backend/ ./backend/
 COPY server.ts ./
-COPY public/ ./public/ 2>/dev/null || true
+# public/ is optional
+RUN mkdir -p public
 
 RUN npm run build:web
 
