@@ -12,6 +12,7 @@ import {
   browserSpeak,
   type VoiceStatus,
 } from '../services/voiceClient';
+import { isOffline, buildOfflineResponse } from '../services/aiClient';
 
 interface LiveVoiceModalProps {
   isOpen: boolean;
@@ -21,7 +22,7 @@ interface LiveVoiceModalProps {
   speakingSpeed?: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const LANG_MAP: Record<string, string> = {
   English: 'en-US',
@@ -121,8 +122,18 @@ export function LiveVoiceModal({
         await speakAnswer(answer);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setError(msg);
-        setAiText(`Error: ${msg}`);
+        if (isOffline()) {
+          // Fully offline: answer from the local brain so voice chat still works.
+          const answer =
+            buildOfflineResponse(prompt, []).content || 'I could not reach the AI server.';
+          historyRef.current.push({ role: 'user', content: prompt });
+          historyRef.current.push({ role: 'assistant', content: answer });
+          setAiText(answer);
+          await speakAnswer(answer);
+        } else {
+          setError(msg);
+          setAiText(`Error: ${msg}`);
+        }
       } finally {
         setProcessing(false);
       }

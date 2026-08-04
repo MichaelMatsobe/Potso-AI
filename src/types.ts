@@ -53,6 +53,7 @@ export interface Message {
   imageUrl?: string;
   artifacts?: Artifact[];
   consensusReached?: boolean;
+  offline?: boolean;
   attachments?: Attachment[];
 }
 

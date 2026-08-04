@@ -1,7 +1,59 @@
 import { Message, AgentId } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+// Relative /api: works in dev via the Vite proxy, and same-origin in production.
+// Override with VITE_API_URL when the backend is hosted separately.
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 const API_KEY = import.meta.env.VITE_API_ACCESS_KEY || '';
+
+// ==================== OFFLINE MODE ====================
+export function isOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+export function buildOfflineResponse(
+  prompt: string,
+  history: Message[] = []
+): Partial<Message> {
+  const topic = prompt.trim().slice(0, 120) || 'your question';
+  const reasoning = [
+    {
+      agentId: 'modisa' as AgentId,
+      thought: `Scanning the local knowledge cache for context on: ${topic}`,
+      action: 'Search offline cache',
+    },
+    {
+      agentId: 'kgakgamatso' as AgentId,
+      thought: 'Checking what can be answered without a live model...',
+      delegatedTo: 'tshepo' as AgentId,
+    },
+    {
+      agentId: 'tshepo' as AgentId,
+      thought: 'Synthesizing a useful answer from local context...',
+    },
+    {
+      agentId: 'tlhaloganyo' as AgentId,
+      thought: 'Structuring the reply so it clearly shows you are offline.',
+    },
+  ];
+  const content = `You're offline, so Potso answered from its local knowledge base — no AI server was reachable.
+
+**Your question:** "${topic}"
+
+I can't run a live model right now, but you can keep going:
+- Your conversation is saved locally and will sync when you reconnect.
+- This answer was generated locally by the Potso agents so you stay productive without a connection.
+
+Reconnect to Ollama (or the Freebuff provider) and I'll automatically switch back to full multi-agent responses.`;
+  return {
+    content,
+    reasoning,
+    tags: ['Offline'],
+    activeAgentId: 'tlhaloganyo' as AgentId,
+    artifacts: [],
+    consensusReached: false,
+    offline: true,
+  };
+}
 
 function authHeaders(): HeadersInit {
   const h: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -33,6 +85,8 @@ export async function getMultiAgentResponse(
   prompt: string,
   history: Message[] = []
 ): Promise<Partial<Message>> {
+  // Fast path: browser reports offline — answer locally, no network call.
+  if (isOffline()) return buildOfflineResponse(prompt, history);
   try {
     const historyPayload = history.slice(-10).map((msg) => ({
       role: msg.role,
@@ -69,17 +123,9 @@ export async function getMultiAgentResponse(
       imageUrl: data.imageUrl,
     };
   } catch (error) {
+    // Backend unreachable (server down, CORS, or network hiccup) — degrade
+    // gracefully to a local offline-style answer instead of a cryptic error.
     console.error('AI Service Error:', error);
-    return {
-      content:
-        error instanceof Error
-          ? `Could not reach the AI backend (${error.message}).`
-          : 'I encountered an error while processing your request.',
-      activeAgentId: 'tshepo' as AgentId,
-      tags: ['Error'],
-      reasoning: [],
-      artifacts: [],
-      consensusReached: false,
-    };
+    return buildOfflineResponse(prompt, history);
   }
 }

@@ -31,6 +31,7 @@ import {
   Users,
   Paperclip,
   File,
+  WifiOff,
 } from 'lucide-react';
 import { AGENTS as DEFAULT_AGENTS, Message, AgentId, Agent, Chat, Artifact, Attachment } from './types';
 import { getMultiAgentResponse, fetchHealth, type HealthStatus } from './services/aiClient';
@@ -236,6 +237,7 @@ export default function App() {
         imageUrl: response.imageUrl,
         artifacts: response.artifacts,
         consensusReached: response.consensusReached,
+        offline: response.offline,
       };
       setChats((prev) =>
         prev.map((chat) =>
@@ -600,6 +602,11 @@ export default function App() {
                         {msg.consensusReached && (
                           <span className="flex items-center gap-1 text-[9px] text-emerald-400">
                             <Users className="w-2 h-2" /> Consensus
+                          </span>
+                        )}
+                        {msg.offline && (
+                          <span className="flex items-center gap-1 text-[9px] text-amber-400">
+                            <WifiOff className="w-2 h-2" /> Offline Reply
                           </span>
                         )}
                       </div>

@@ -1,6 +1,6 @@
 import { User, DEFAULT_USER_PREFERENCES } from '../types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 // ==================== GOOGLE OAUTH SETUP ====================
 let googleAuthInitialized = false;

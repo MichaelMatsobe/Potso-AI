@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     define: {
-      'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || 'http://localhost:8080/api'),
+      'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || '/api'),
       'import.meta.env.VITE_API_ACCESS_KEY': JSON.stringify(env.VITE_API_ACCESS_KEY || ''),
       'import.meta.env.VITE_GOOGLE_CLIENT_ID': JSON.stringify(env.VITE_GOOGLE_CLIENT_ID || ''),
       'process.env.NODE_ENV': JSON.stringify(mode),
@@ -22,6 +22,14 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
+      proxy: {
+        // Relative /api in the browser is proxied to the Express backend here.
+        '/api': {
+          target: 'http://localhost:8080',
+          changeOrigin: true,
+          secure: false,
+        },
+      },
     },
   };
 });
