@@ -4,6 +4,8 @@ import {
   getProvider,
   getProviderMode,
   isFreebuffConfigured,
+  probeOllama,
+  probeFreebuff,
   type AIMessage,
 } from '../services/aiService.js';
 
@@ -56,10 +58,25 @@ router.post('/chat', async (req, res) => {
 });
 
 router.get('/status', async (_req, res) => {
+  const mode = getProviderMode();
+  const freebuffConfigured = isFreebuffConfigured();
+  const [ollama, freebuff] = await Promise.all([
+    probeOllama(),
+    freebuffConfigured ? probeFreebuff() : Promise.resolve({ ok: false, detail: 'not configured' }),
+  ]);
+
+  let online = false;
+  if (mode === 'ollama') online = ollama.ok;
+  else if (mode === 'freebuff') online = freebuff.ok || ollama.ok;
+  else online = ollama.ok || freebuff.ok;
+
   res.json({
     provider: getProvider(),
-    mode: getProviderMode(),
-    freebuffConfigured: isFreebuffConfigured(),
+    mode,
+    online,
+    freebuffConfigured,
+    ollama: { ok: ollama.ok, detail: ollama.detail },
+    freebuff: { ok: freebuff.ok, detail: freebuff.detail },
     timestamp: new Date().toISOString(),
   });
 });
