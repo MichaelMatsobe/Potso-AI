@@ -30,7 +30,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 app.get('/api/health', async (_req, res) => {
-  let provider = 'unknown';
+  let provider: 'ollama' | 'freebuff' = 'ollama';
   try {
     provider = getProvider();
   } catch {
@@ -43,20 +43,23 @@ app.get('/api/health', async (_req, res) => {
   }
 
   res.json({
-    status: ollama.ok || provider !== 'ollama' ? 'ok' : 'degraded',
+    status: provider === 'ollama' ? (ollama.ok ? 'ok' : 'degraded') : 'ok',
     timestamp: new Date().toISOString(),
     aiProvider: provider,
     openSource: provider === 'ollama',
     noQuota: provider === 'ollama',
-    aiOnline: provider === 'ollama' ? ollama.ok : provider === 'gemini' ? Boolean(process.env.GEMINI_API_KEY) : true,
+    aiOnline: provider === 'ollama' ? ollama.ok : true,
     ollama,
     firebaseReady: isFirebaseReady(),
     guestMode: true,
+    // Free browser voice always available (Web Speech API)
+    liveVoiceAvailable: true,
+    liveVoiceMode: 'browser-speech',
     ollamaBaseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/v1',
     ollamaModel: process.env.OLLAMA_MODEL || 'llama3.2',
     openSourceModels: listOpenSourceModels(),
     freebuffModelsOptional: listFreebuffModels(),
-    liveVoiceAvailable: provider === 'gemini' && Boolean(process.env.GEMINI_API_KEY),
+    paidServices: false,
     endpoints: {
       publicAiChat: 'POST /api/ai/chat',
       health: 'GET /api/health',
@@ -84,11 +87,7 @@ async function startServer() {
     console.log(`🚀 API  http://localhost:${API_PORT}`);
     console.log(`💚 Health http://localhost:${API_PORT}/api/health`);
     console.log(`🤖 AI   POST http://localhost:${API_PORT}/api/ai/chat`);
-    try {
-      console.log(`🧠 Provider ${getProvider()}`);
-    } catch {
-      /* ignore */
-    }
+    console.log(`🧠 Provider ${getProvider()} (open-source / free only — no Gemini)`);
     console.log(`🔥 Firebase ${isFirebaseReady() ? 'ready' : 'guest mode'}`);
   });
 }

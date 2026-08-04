@@ -1,6 +1,3 @@
-/**
- * Frontend AI client — talks to backend public /api/ai/chat (Ollama by default).
- */
 import { Message, AgentId } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
@@ -70,7 +67,7 @@ export async function getMultiAgentResponse(
     return {
       content:
         error instanceof Error
-          ? `Could not reach the AI backend (${error.message}). Ensure the API is on :8080 and Ollama is running (ollama serve).`
+          ? `Could not reach the AI backend (${error.message}). Ensure the API is on :8080 and Ollama is running.`
           : 'I encountered an error while processing your request.',
       activeAgentId: 'tshepo' as AgentId,
       tags: ['Error'],

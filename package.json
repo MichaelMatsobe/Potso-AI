@@ -1,7 +1,7 @@
 {
   "name": "potso-ai",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "scripts": {
     "dev": "concurrently \"npm run dev:web\" \"npm run dev:server\"",
@@ -18,23 +18,19 @@
     "docker:run": "docker run -p 3000:3000 -p 8080:8080 --env-file .env.local potso-ai:latest"
   },
   "dependencies": {
-    "@google/genai": "^1.29.0",
-    "@react-three/fiber": "^9.5.0",
     "@tailwindcss/vite": "^4.1.14",
-    "@types/three": "^0.183.1",
     "@vitejs/plugin-react": "^5.0.4",
     "cors": "^2.8.6",
-    "express": "^4.18.2",
-    "firebase-admin": "^12.0.0",
-    "firebase": "^10.7.0",
     "dotenv": "^16.3.1",
-    "uuid": "^9.0.1",
+    "express": "^4.18.2",
+    "firebase": "^10.7.0",
+    "firebase-admin": "^12.0.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-firebase-hooks": "^5.1.1",
-    "three": "^0.183.2",
+    "uuid": "^9.0.1",
     "vite": "^6.2.0"
   },
   "devDependencies": {
@@ -46,7 +42,6 @@
     "concurrently": "^8.2.2",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "typescript": "~5.8.2"
   }
 }
