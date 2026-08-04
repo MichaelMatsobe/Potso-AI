@@ -6,9 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
-grep_results.txt
 serviceAccountKey.json
+grep_results.txt
 *.local
 .expo/
 mobile/node_modules/
-mobile/.expo/
