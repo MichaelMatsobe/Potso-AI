@@ -91,16 +91,19 @@ export async function getMultiAgentResponse(
   try {
     const slidingWindow = history.slice(-10);
 
-    // Ensure we always send at least the current prompt
+    // Always include the current user prompt as the final turn
     let contents = slidingWindow as any[];
-    if (
-      contents.length === 0 ||
-      contents[contents.length - 1]?.role !== "user"
-    ) {
-      contents = [
-        ...contents,
-        { role: "user", parts: [{ text: prompt || " " }] },
-      ];
+    const last = contents[contents.length - 1];
+    const promptText = (prompt || "").trim() || " ";
+    if (last?.role === "user") {
+      // History already ends with a user turn — replace its text with the current prompt
+      const parts = Array.isArray(last.parts) ? [...last.parts] : [];
+      const textIdx = parts.findIndex((p: any) => typeof p?.text === "string");
+      if (textIdx >= 0) parts[textIdx] = { text: promptText };
+      else parts.unshift({ text: promptText });
+      contents = [...contents.slice(0, -1), { role: "user", parts }];
+    } else {
+      contents = [...contents, { role: "user", parts: [{ text: promptText }] }];
     }
 
     const response = await ai.models.generateContent({
