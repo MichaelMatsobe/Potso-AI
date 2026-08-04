@@ -1,8 +1,8 @@
 /**
- * Potso-AI — open-source / free providers only
- * Primary: Ollama (self-hosted, no quotas)
- * Optional: Freebuff OpenAI-compatible proxy
- * No Gemini, no paid APIs.
+ * Potso-AI — complementary free backends
+ * Ollama (local, open source, no quota) + Freebuff (hosted free models)
+ * Default: hybrid — use both: Ollama first, Freebuff if Ollama fails (when configured).
+ * No Gemini / paid Google APIs.
  */
 
 export interface AIMessage {
@@ -36,6 +36,7 @@ export interface MultiAgentResult {
     fallbackUsed?: boolean;
     openSource?: boolean;
     noQuota?: boolean;
+    mode?: string;
   };
 }
 
@@ -56,16 +57,36 @@ export const FREEBUFF_MODELS = [
   { id: "minimax/minimax-m2.7", label: "MiniMax (Freebuff)", notes: "Hosted free" },
 ];
 
-export function getProvider(): "ollama" | "freebuff" {
-  const explicit = (process.env.AI_PROVIDER || "").toLowerCase().trim();
+/** auto/hybrid = complementary stack; ollama/freebuff = force one side */
+export type ProviderMode = "auto" | "hybrid" | "ollama" | "freebuff";
+
+export function getProviderMode(): ProviderMode {
+  const explicit = (process.env.AI_PROVIDER || "auto").toLowerCase().trim();
   if (explicit === "freebuff" || explicit === "openai") return "freebuff";
   if (explicit === "ollama" || explicit === "local") return "ollama";
-  if (process.env.FREEBUFF_BASE_URL || process.env.FREEBUFF_MODEL) return "freebuff";
-  return "ollama";
+  if (explicit === "hybrid" || explicit === "auto" || explicit === "both") return "auto";
+  // Legacy: FREEBUFF_* set without AI_PROVIDER still enables hybrid (not Freebuff-only)
+  return "auto";
+}
+
+/** @deprecated Prefer getProviderMode(); returns effective primary label for health */
+export function getProvider(): "ollama" | "freebuff" | "auto" {
+  const m = getProviderMode();
+  if (m === "freebuff") return "freebuff";
+  if (m === "ollama") return "ollama";
+  return "auto";
+}
+
+export function isFreebuffConfigured(): boolean {
+  return Boolean(
+    process.env.FREEBUFF_BASE_URL ||
+      process.env.FREEBUFF_MODEL ||
+      process.env.FREEBUFF_API_KEY
+  );
 }
 
 const SYSTEM_PROMPT = `You are Potso, a South African multi-agent system (creator: Michael Aaron Matsobe).
-You run on open-source models only (Ollama / Freebuff). No paid APIs.
+You may run on Ollama (local) and/or Freebuff (hosted free models). No paid Google APIs.
 Simulate exactly 4 agents: Modisa (search), Tshepo (synthesis), Kgakgamatso (tech), Tlhaloganyo (narrative).
 Respond with ONLY valid JSON (no markdown fences):
 {"reasoning":[{"agentId":"modisa|tshepo|kgakgamatso|tlhaloganyo","thought":"...","delegatedTo":"optional","action":"optional"}],"artifacts":[{"id":"string","title":"string","content":"string","type":"code|data|text","createdBy":"agentId"}],"answer":"complete helpful answer","tags":["t1","t2"],"primaryAgent":"tshepo","consensusReached":true}
@@ -243,6 +264,29 @@ export async function probeOllama(): Promise<{ ok: boolean; detail?: string }> {
   }
 }
 
+export async function probeFreebuff(): Promise<{ ok: boolean; detail?: string }> {
+  if (!isFreebuffConfigured()) {
+    return { ok: false, detail: "not configured" };
+  }
+  const baseUrl = (process.env.FREEBUFF_BASE_URL || "http://127.0.0.1:8000/v1").replace(/\/$/, "");
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    // Prefer models list; some proxies only implement chat
+    const res = await fetch(`${baseUrl}/models`, {
+      headers: {
+        Authorization: `Bearer ${process.env.FREEBUFF_API_KEY || "freebuff"}`,
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (res.ok) return { ok: true };
+    return { ok: false, detail: `status ${res.status}` };
+  } catch (e) {
+    return { ok: false, detail: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 async function ollamaMultiAgentResponse(
   prompt: string,
   history: AIMessage[] = [],
@@ -295,6 +339,7 @@ async function ollamaMultiAgentResponse(
           fallbackUsed: asFallback || i > 0,
           openSource: true,
           noQuota: true,
+          mode: asFallback ? "hybrid-fallback" : "primary",
         });
       }
 
@@ -314,6 +359,7 @@ async function ollamaMultiAgentResponse(
             fallbackUsed: asFallback || i > 0,
             openSource: true,
             noQuota: true,
+            mode: asFallback ? "hybrid-fallback" : "primary",
           }
         );
       }
@@ -325,13 +371,14 @@ async function ollamaMultiAgentResponse(
   }
 
   throw new Error(
-    `All local models failed. Run: ollama pull ${primary} && ollama serve. ${errors.join(" | ")}`
+    `Ollama failed. Run: ollama pull ${primary} && ollama serve. ${errors.join(" | ")}`
   );
 }
 
 async function freebuffMultiAgentResponse(
   prompt: string,
-  history: AIMessage[] = []
+  history: AIMessage[] = [],
+  asFallback = false
 ): Promise<MultiAgentResult> {
   const baseUrl = (process.env.FREEBUFF_BASE_URL || "http://127.0.0.1:8000/v1").replace(/\/$/, "");
   const apiKey = process.env.FREEBUFF_API_KEY || process.env.OPENAI_API_KEY || "freebuff";
@@ -358,9 +405,10 @@ async function freebuffMultiAgentResponse(
         return normalizeResult(parsed, {
           provider: "freebuff",
           model,
-          fallbackUsed: i > 0,
+          fallbackUsed: asFallback || i > 0,
           openSource: false,
           noQuota: false,
+          mode: asFallback ? "hybrid-fallback" : "primary",
         });
       }
       if (content.trim()) {
@@ -373,7 +421,14 @@ async function freebuffMultiAgentResponse(
             consensusReached: false,
             artifacts: [],
           },
-          { provider: "freebuff", model, fallbackUsed: i > 0, openSource: false, noQuota: false }
+          {
+            provider: "freebuff",
+            model,
+            fallbackUsed: asFallback || i > 0,
+            openSource: false,
+            noQuota: false,
+            mode: asFallback ? "hybrid-fallback" : "primary",
+          }
         );
       }
       errors.push(`${model}: empty`);
@@ -382,26 +437,52 @@ async function freebuffMultiAgentResponse(
     }
   }
 
-  try {
-    return await ollamaMultiAgentResponse(prompt, history, true);
-  } catch (e) {
-    errors.push(`ollama: ${e instanceof Error ? e.message : String(e)}`);
-  }
-
   throw new Error(`Freebuff failed. ${errors.join(" | ")}`);
 }
 
+/**
+ * Complementary routing:
+ * - auto/hybrid: Ollama first → Freebuff if Ollama fails and Freebuff is configured
+ * - ollama: local only
+ * - freebuff: Freebuff first → Ollama if Freebuff fails
+ */
 export async function getMultiAgentResponse(
   prompt: string,
   history: AIMessage[] = []
 ): Promise<MultiAgentResult> {
-  const provider = getProvider();
+  const mode = getProviderMode();
+  const errors: string[] = [];
 
   try {
-    if (provider === "freebuff") return await freebuffMultiAgentResponse(prompt, history);
-    return await ollamaMultiAgentResponse(prompt, history, false);
+    if (mode === "ollama") {
+      return await ollamaMultiAgentResponse(prompt, history, false);
+    }
+
+    if (mode === "freebuff") {
+      try {
+        return await freebuffMultiAgentResponse(prompt, history, false);
+      } catch (e) {
+        errors.push(`freebuff: ${e instanceof Error ? e.message : String(e)}`);
+        return await ollamaMultiAgentResponse(prompt, history, true);
+      }
+    }
+
+    // auto / hybrid — complementary
+    try {
+      return await ollamaMultiAgentResponse(prompt, history, false);
+    } catch (e) {
+      errors.push(`ollama: ${e instanceof Error ? e.message : String(e)}`);
+      if (isFreebuffConfigured()) {
+        try {
+          return await freebuffMultiAgentResponse(prompt, history, true);
+        } catch (e2) {
+          errors.push(`freebuff: ${e2 instanceof Error ? e2.message : String(e2)}`);
+        }
+      }
+      throw new Error(errors.join(" | "));
+    }
   } catch (error) {
-    console.error(`AI provider (${provider}) error:`, error);
+    console.error(`AI hybrid error:`, error);
     return {
       reasoning: [
         {
@@ -410,16 +491,17 @@ export async function getMultiAgentResponse(
         },
       ],
       answer:
-        "I could not reach the AI backend. Install Ollama (https://ollama.com), run `ollama pull llama3.2` and `ollama serve`, then restart the API. Or configure Freebuff as AI_PROVIDER=freebuff.",
-      tags: ["Error", provider],
+        "I could not reach Ollama or Freebuff. Start Ollama (`ollama pull llama3.2 && ollama serve`) and/or configure Freebuff (FREEBUFF_BASE_URL) so they can complement each other.",
+      tags: ["Error", mode],
       primaryAgent: "tshepo",
       artifacts: [],
       consensusReached: false,
       _meta: {
-        provider,
+        provider: mode,
         model: "none",
-        openSource: provider === "ollama",
-        noQuota: provider === "ollama",
+        openSource: true,
+        noQuota: true,
+        mode: "failed",
       },
     };
   }
