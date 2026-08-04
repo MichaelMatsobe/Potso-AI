@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+grep_results.txt
+serviceAccountKey.json
+*.local
+data/dsar/
+data/audit/

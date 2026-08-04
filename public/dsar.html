@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Data request (DSAR) — Potso AI</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 28rem; margin: 2rem auto; padding: 0 1rem; background: #0a0a0a; color: #e8e8e8; line-height: 1.45; }
+    h1 { font-size: 1.25rem; color: #13c8ec; }
+    label { display: block; font-size: 0.8rem; margin: 0.75rem 0 0.25rem; color: #aaa; }
+    input, select, textarea, button { width: 100%; box-sizing: border-box; padding: 0.6rem; border-radius: 0.5rem; border: 1px solid #333; background: #111; color: #fff; }
+    button { background: #13c8ec; color: #0a0a0a; font-weight: 700; border: none; cursor: pointer; margin-top: 1rem; }
+    button.secondary { background: #222; color: #13c8ec; border: 1px solid #13c8ec; }
+    .out { margin-top: 1rem; padding: 0.75rem; background: #111; border-radius: 0.5rem; font-size: 0.85rem; white-space: pre-wrap; word-break: break-all; }
+    a { color: #13c8ec; }
+    .hint { font-size: 0.75rem; color: #888; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Data subject request</h1>
+  <p class="hint">Submit access, portability, or erasure requests. You will receive a token — store it to check status or download your export.</p>
+
+  <label>Request type</label>
+  <select id="type">
+    <option value="access">Access (copy of my data)</option>
+    <option value="portability">Portability (machine-readable export)</option>
+    <option value="erasure">Erasure (delete my account data)</option>
+    <option value="rectification">Rectification</option>
+    <option value="restriction">Restriction of processing</option>
+  </select>
+
+  <label>Email</label>
+  <input id="email" type="email" placeholder="you@example.com" required />
+
+  <label>Notes (optional)</label>
+  <textarea id="notes" rows="2" placeholder="Optional context"></textarea>
+
+  <button id="submit">Submit request</button>
+  <button class="secondary" id="clearLocal" type="button">Clear local guest data on this device</button>
+
+  <div class="out" id="out">Result appears here.</div>
+  <p class="hint"><a href="/">App</a> · <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a></p>
+
+  <script>
+    const API = (location.port === '3000' ? 'http://localhost:8080' : '') + '/api';
+
+    document.getElementById('clearLocal').onclick = () => {
+      try {
+        localStorage.removeItem('potso_chats');
+        Object.keys(localStorage).filter(k => k.startsWith('potso')).forEach(k => localStorage.removeItem(k));
+        document.getElementById('out').textContent = 'Local guest chat data cleared on this browser.';
+      } catch (e) {
+        document.getElementById('out').textContent = 'Could not clear localStorage: ' + e.message;
+      }
+    };
+
+    document.getElementById('submit').onclick = async () => {
+      const type = document.getElementById('type').value;
+      const email = document.getElementById('email').value.trim();
+      const notes = document.getElementById('notes').value.trim();
+      const out = document.getElementById('out');
+      out.textContent = 'Submitting…';
+      try {
+        const res = await fetch(API + '/dsar/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, email, notes: notes || undefined }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || res.status);
+        out.textContent =
+          'Status: ' + data.status +
+          '\nID: ' + data.id +
+          '\nToken (save this): ' + data.token +
+          '\n\n' + (data.resultSummary || '') +
+          '\n\nCheck: GET /api/dsar/' + data.id + '?token=…' +
+          (type === 'access' || type === 'portability'
+            ? '\nExport: GET /api/dsar/' + data.id + '/export?token=…'
+            : '') +
+          (type === 'erasure'
+            ? '\n\nAlso use “Clear local guest data” if you used the app without an account.'
+            : '');
+      } catch (e) {
+        out.textContent = 'Error: ' + e.message;
+      }
+    };
+  </script>
+</body>
+</html>

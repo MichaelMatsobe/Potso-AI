@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Potso AI</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 2rem auto; padding: 0 1rem; background: #0a0a0a; color: #e8e8e8; }
+    h1 { color: #13c8ec; font-size: 1.25rem; }
+    input, button { width: 100%; box-sizing: border-box; padding: 0.6rem; margin: 0.4rem 0; border-radius: 0.5rem; border: 1px solid #333; background: #111; color: #fff; }
+    button { background: #13c8ec; color: #0a0a0a; font-weight: 700; border: none; cursor: pointer; }
+    pre { background: #111; padding: 0.75rem; border-radius: 0.5rem; overflow: auto; font-size: 0.75rem; }
+    a { color: #13c8ec; }
+  </style>
+</head>
+<body>
+  <h1>Potso admin</h1>
+  <p style="font-size:0.8rem;color:#888">Requires <code>API_ACCESS_KEY</code>. Not for public exposure without TLS + strong key.</p>
+  <label>API key</label>
+  <input id="key" type="password" placeholder="API_ACCESS_KEY" />
+  <button id="status">Policy status</button>
+  <button id="maint">Run maintenance purge</button>
+  <button id="dsar">List DSAR tickets</button>
+  <pre id="out">Output…</pre>
+  <p><a href="/">App</a> · <a href="/dsar.html">DSAR</a></p>
+  <script>
+    const API = (location.port === '3000' ? 'http://localhost:8080' : '') + '/api';
+    const out = document.getElementById('out');
+    const headers = () => ({ 'X-API-Key': document.getElementById('key').value, 'Content-Type': 'application/json' });
+    document.getElementById('status').onclick = async () => {
+      const r = await fetch(API + '/admin/policy-status', { headers: headers() });
+      out.textContent = JSON.stringify(await r.json(), null, 2);
+    };
+    document.getElementById('maint').onclick = async () => {
+      const r = await fetch(API + '/admin/maintenance', { method: 'POST', headers: headers() });
+      out.textContent = JSON.stringify(await r.json(), null, 2);
+    };
+    document.getElementById('dsar').onclick = async () => {
+      const r = await fetch(API + '/dsar', { headers: headers() });
+      out.textContent = JSON.stringify(await r.json(), null, 2);
+    };
+  </script>
+</body>
+</html>
