@@ -1,6 +1,5 @@
 /**
- * Unit tests for JSON extraction & agent payload normalization.
- * Self-contained (mirrors src/utils/jsonExtract.ts logic).
+ * Unit tests for JSON extraction, payload normalization, hybrid provider mode.
  */
 
 function extractJSON(text) {
@@ -54,12 +53,23 @@ function normalizeAgentPayload(raw) {
   };
 }
 
-function resolveProvider(env) {
-  const explicit = (env.AI_PROVIDER || '').toLowerCase().trim();
+/** Mirrors getProviderMode() + getProvider() hybrid behavior */
+function resolveProviderMode(env) {
+  const explicit = (env.AI_PROVIDER || 'auto').toLowerCase().trim();
   if (explicit === 'freebuff' || explicit === 'openai') return 'freebuff';
   if (explicit === 'ollama' || explicit === 'local') return 'ollama';
-  if (env.FREEBUFF_BASE_URL || env.FREEBUFF_MODEL) return 'freebuff';
-  return 'ollama';
+  if (explicit === 'hybrid' || explicit === 'auto' || explicit === 'both' || !env.AI_PROVIDER) {
+    return 'auto';
+  }
+  if (explicit === 'gemini') return 'auto';
+  return 'auto';
+}
+
+function resolveProvider(env) {
+  const mode = resolveProviderMode(env);
+  if (mode === 'freebuff') return 'freebuff';
+  if (mode === 'ollama') return 'ollama';
+  return 'auto';
 }
 
 let passed = 0;
@@ -99,12 +109,14 @@ assert(n1.consensusReached === true, 'consensus');
 assert(normalizeAgentPayload('raw text').answer === 'raw text', 'string fallback');
 assert(normalizeAgentPayload(null).primaryAgent === 'tshepo', 'null defaults');
 
-console.log('\n=== Unit: resolveProvider ===');
-assert(resolveProvider({}) === 'ollama', 'default ollama');
+console.log('\n=== Unit: resolveProvider (hybrid) ===');
+assert(resolveProvider({}) === 'auto', 'default auto hybrid');
+assert(resolveProviderMode({}) === 'auto', 'default mode auto');
 assert(resolveProvider({ AI_PROVIDER: 'freebuff' }) === 'freebuff', 'explicit freebuff');
 assert(resolveProvider({ AI_PROVIDER: 'ollama' }) === 'ollama', 'explicit ollama');
-assert(resolveProvider({ FREEBUFF_BASE_URL: 'http://x' }) === 'freebuff', 'auto freebuff');
-assert(resolveProvider({ AI_PROVIDER: 'gemini' }) === 'ollama', 'gemini rejected → ollama');
+assert(resolveProvider({ AI_PROVIDER: 'hybrid' }) === 'auto', 'hybrid → auto');
+assert(resolveProvider({ FREEBUFF_BASE_URL: 'http://x' }) === 'auto', 'FREEBUFF env keeps hybrid auto');
+assert(resolveProvider({ AI_PROVIDER: 'gemini' }) === 'auto', 'gemini rejected → auto');
 
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
