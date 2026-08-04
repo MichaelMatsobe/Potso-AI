@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getFirestore } from '../config/firebase';
-import { getMultiAgentResponse } from '../services/geminiService';
+import { getMultiAgentResponse } from '../services/aiService';
 import { verifyAuthToken, AuthRequest } from '../middleware/auth';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -151,7 +151,7 @@ router.post('/chats/:chatId/messages', verifyAuthToken, async (req: AuthRequest,
       };
     }) as any;
 
-    // Get AI response
+    // Get AI response (provider selected via AI_PROVIDER / env)
     const aiResponse = await getMultiAgentResponse(content, history);
 
     // Save AI message
@@ -165,6 +165,7 @@ router.post('/chats/:chatId/messages', verifyAuthToken, async (req: AuthRequest,
       activeAgentId: aiResponse.primaryAgent || 'tshepo',
       artifacts: aiResponse.artifacts || [],
       consensusReached: aiResponse.consensusReached || false,
+      imageUrl: aiResponse.imageUrl || undefined,
       timestamp: new Date().toISOString()
     };
 
