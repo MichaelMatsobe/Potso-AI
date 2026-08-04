@@ -15,6 +15,11 @@ import {
   probeOllama,
 } from './backend/services/aiService.js';
 import { isLocalVoiceConfigured, probeLocalVoice } from './backend/services/voiceLocal.js';
+import {
+  securityHeaders,
+  rateLimitMiddleware,
+  apiKeyMiddleware,
+} from './backend/middleware/accessControl.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -27,10 +32,18 @@ try {
   console.warn('[Server] Firebase init skipped');
 }
 
-app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') || '*' }));
+const allowed = process.env.ALLOWED_ORIGINS?.split(',').map((s) => s.trim()).filter(Boolean);
+app.use(
+  cors({
+    origin: !allowed || allowed.includes('*') ? true : allowed,
+    credentials: true,
+  })
+);
+app.use(securityHeaders);
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ limit: '15mb', extended: true }));
 
+// Health is public (for load balancers) but does not expose secrets
 app.get('/api/health', async (_req, res) => {
   let provider: 'ollama' | 'freebuff' = 'ollama';
   try {
@@ -56,7 +69,7 @@ app.get('/api/health', async (_req, res) => {
     openSource: provider === 'ollama',
     noQuota: provider === 'ollama',
     aiOnline: provider === 'ollama' ? ollama.ok : true,
-    ollama,
+    ollama: { ok: ollama.ok },
     firebaseReady: isFirebaseReady(),
     guestMode: true,
     liveVoiceAvailable: true,
@@ -65,27 +78,25 @@ app.get('/api/health', async (_req, res) => {
       configured: voiceConfigured,
       sttOnline: voice.stt,
       ttsOnline: voice.tts,
-      detail: voice.detail,
     },
-    ollamaBaseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/v1',
-    ollamaModel: process.env.OLLAMA_MODEL || 'llama3.2',
-    openSourceModels: listOpenSourceModels(),
-    freebuffModelsOptional: listFreebuffModels(),
+    accessControl: {
+      apiKeyRequired: Boolean(process.env.API_ACCESS_KEY),
+      rateLimitEnabled: process.env.RATE_LIMIT_DISABLED !== 'true',
+    },
     paidServices: false,
     endpoints: {
       publicAiChat: 'POST /api/ai/chat',
       voiceStatus: 'GET /api/voice/status',
-      voiceStt: 'POST /api/voice/stt',
-      voiceTts: 'POST /api/voice/tts',
       health: 'GET /api/health',
     },
   });
 });
 
-app.use('/api/ai', aiRoutes);
-app.use('/api/voice', voiceRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/chat', chatRoutes);
+// Sensitive routes: rate limit + optional API key
+app.use('/api/ai', rateLimitMiddleware, apiKeyMiddleware, aiRoutes);
+app.use('/api/voice', rateLimitMiddleware, apiKeyMiddleware, voiceRoutes);
+app.use('/api/auth', rateLimitMiddleware, authRoutes);
+app.use('/api/chat', rateLimitMiddleware, apiKeyMiddleware, chatRoutes);
 
 async function startServer() {
   const API_PORT = parseInt(process.env.API_PORT || '8080', 10);
@@ -102,9 +113,10 @@ async function startServer() {
   app.listen(API_PORT, '0.0.0.0', () => {
     console.log(`🚀 API  http://localhost:${API_PORT}`);
     console.log(`💚 Health http://localhost:${API_PORT}/api/health`);
-    console.log(`🤖 AI   POST http://localhost:${API_PORT}/api/ai/chat`);
-    console.log(`🎙️ Voice GET  http://localhost:${API_PORT}/api/voice/status`);
-    console.log(`🧠 Provider ${getProvider()} (free/open-source only)`);
+    console.log(
+      `🔐 API key ${process.env.API_ACCESS_KEY ? 'REQUIRED' : 'optional (set API_ACCESS_KEY for production)'}`
+    );
+    console.log(`🧠 Provider ${getProvider()}`);
     console.log(`🔥 Firebase ${isFirebaseReady() ? 'ready' : 'guest mode'}`);
   });
 }

@@ -1,9 +1,12 @@
-/**
- * Frontend voice client — local Whisper/Piper via API, else browser APIs.
- * Entirely free / open source.
- */
-
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const API_KEY = import.meta.env.VITE_API_ACCESS_KEY || '';
+
+function authHeaders(json = true): HeadersInit {
+  const h: Record<string, string> = {};
+  if (json) h['Content-Type'] = 'application/json';
+  if (API_KEY) h['X-API-Key'] = API_KEY;
+  return h;
+}
 
 export interface VoiceStatus {
   configured: boolean;
@@ -17,6 +20,7 @@ export interface VoiceStatus {
 export async function fetchVoiceStatus(): Promise<VoiceStatus | null> {
   try {
     const res = await fetch(`${API_URL}/voice/status`, {
+      headers: authHeaders(false),
       signal: AbortSignal.timeout(3000),
     });
     if (!res.ok) return null;
@@ -35,7 +39,7 @@ export async function localSttFromBlob(blob: Blob): Promise<string> {
 
   const res = await fetch(`${API_URL}/voice/stt`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(true),
     body: JSON.stringify({
       audioBase64,
       mimeType: blob.type || 'audio/webm',
@@ -55,7 +59,7 @@ export async function localSttFromBlob(blob: Blob): Promise<string> {
 export async function localTtsToAudioUrl(text: string): Promise<string> {
   const res = await fetch(`${API_URL}/voice/tts`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders(true),
     body: JSON.stringify({ text }),
     signal: AbortSignal.timeout(90_000),
   });

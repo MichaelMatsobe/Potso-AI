@@ -1,16 +1,22 @@
 import { Message, AgentId } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const API_KEY = import.meta.env.VITE_API_ACCESS_KEY || '';
+
+function authHeaders(): HeadersInit {
+  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (API_KEY) h['X-API-Key'] = API_KEY;
+  return h;
+}
 
 export interface HealthStatus {
   status: string;
   aiProvider: string;
   aiOnline: boolean;
-  openSource: boolean;
-  noQuota: boolean;
-  liveVoiceAvailable: boolean;
-  ollamaModel?: string;
-  firebaseReady?: boolean;
+  openSource?: boolean;
+  noQuota?: boolean;
+  liveVoiceAvailable?: boolean;
+  accessControl?: { apiKeyRequired?: boolean; rateLimitEnabled?: boolean };
 }
 
 export async function fetchHealth(): Promise<HealthStatus | null> {
@@ -35,7 +41,7 @@ export async function getMultiAgentResponse(
 
     const response = await fetch(`${API_URL}/ai/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ content: prompt, history: historyPayload }),
       signal: AbortSignal.timeout(180_000),
     });
@@ -67,7 +73,7 @@ export async function getMultiAgentResponse(
     return {
       content:
         error instanceof Error
-          ? `Could not reach the AI backend (${error.message}). Ensure the API is on :8080 and Ollama is running.`
+          ? `Could not reach the AI backend (${error.message}).`
           : 'I encountered an error while processing your request.',
       activeAgentId: 'tshepo' as AgentId,
       tags: ['Error'],
