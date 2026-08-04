@@ -61,7 +61,7 @@ export class AuthService {
       }
 
       const data = await response.json();
-      this.setToken(data.token);
+      this.setToken(data.idToken || data.token);
     } catch (error) {
       console.error('Signup error:', error);
       throw error;
@@ -82,7 +82,7 @@ export class AuthService {
       }
 
       const data = await response.json();
-      this.setToken(data.token);
+      this.setToken(data.idToken || data.token);
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -117,7 +117,7 @@ export class AuthService {
       }
 
       const data = await response.json();
-      this.setToken(data.token);
+      this.setToken(data.idToken || data.token);
     } catch (error) {
       console.error('Google sign-in error:', error);
       throw error;
