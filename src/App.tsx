@@ -55,6 +55,11 @@ const AVAILABLE_ICONS = {
   Activity
 };
 
+const GUEST_USER = {
+  displayName: 'Guest',
+  email: 'guest@local',
+};
+
 export default function App() {
   const [agents, setAgents] = useState<Agent[]>(DEFAULT_AGENTS);
   const [showSettings, setShowSettings] = useState(false);
@@ -63,8 +68,6 @@ export default function App() {
   const [voiceAccent, setVoiceAccent] = useState('Zephyr');
   const [voiceSpeed, setVoiceSpeed] = useState('Normal');
   const [showLiveVoice, setShowLiveVoice] = useState(false);
-  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
-  const [customPath, setCustomPath] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
 
@@ -73,36 +76,18 @@ export default function App() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed;
         }
       } catch (e) {
-        console.error("Failed to parse chats", e);
+        console.error('Failed to parse chats', e);
       }
     }
     return [{
       id: 'default',
-      title: 'Quantum Supremacy Analysis',
+      title: 'New Conversation',
       createdAt: Date.now(),
-      messages: [
-        {
-          id: '1',
-          role: 'user',
-          content: 'Analyze the long-term impact of quantum supremacy on blockchain encryption. Use multiple perspectives.'
-        },
-        {
-          id: '2',
-          role: 'assistant',
-          content: "Based on current trajectories, quantum computers using Shor's algorithm will render current RSA and ECC encryption obsolete. However, the transition to Lattice-based cryptography is already being integrated into Layer 1 protocols...",
-          reasoning: [
-            { agentId: 'kgakgamatso', thought: 'Initiating cryptographic audit... ECDSA vulnerabilities at 5000+ stable qubits.' },
-            { agentId: 'tshepo', thought: 'Cross-referencing latest NIST post-quantum standard papers (2024 update).' },
-            { agentId: 'tlhaloganyo', thought: 'Synthesizing structural narrative for readability.' }
-          ],
-          tags: ['Research Hub', 'Encryption'],
-          activeAgentId: 'tshepo'
-        }
-      ]
+      messages: [] as Message[],
     }];
   });
 
@@ -115,9 +100,8 @@ export default function App() {
     try {
       localStorage.setItem('potso_chats', JSON.stringify(chats));
     } catch (e) {
-      console.error("Failed to save chats to localStorage, quota exceeded", e);
+      console.error('Failed to save chats to localStorage, quota exceeded', e);
       try {
-        // Fallback: keep only the last 10 chats, and last 20 messages per chat, without attachments
         const truncatedChats = chats.slice(0, 10).map(chat => ({
           ...chat,
           messages: chat.messages.slice(-20).map(msg => ({
@@ -127,7 +111,7 @@ export default function App() {
         }));
         localStorage.setItem('potso_chats', JSON.stringify(truncatedChats));
       } catch (innerError) {
-        console.error("Even truncated chats failed to save", innerError);
+        console.error('Even truncated chats failed to save', innerError);
       }
     }
   }, [chats]);
@@ -184,68 +168,57 @@ export default function App() {
 
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Speech recognition is not supported in this browser.");
+      alert('Speech recognition is not supported in this browser.');
       return;
     }
 
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = true;
-    recognition.lang = voiceLanguage === 'English' ? 'en-US' : 'en-US'; // Can map languages if needed
+    recognition.lang = 'en-US';
 
-    recognition.onstart = () => {
-      setIsDictating(true);
-    };
-
+    recognition.onstart = () => setIsDictating(true);
     recognition.onresult = (event: any) => {
       let finalTranscript = '';
-
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
           finalTranscript += event.results[i][0].transcript;
         }
       }
-
       if (finalTranscript) {
         setInput(prev => prev + (prev ? ' ' : '') + finalTranscript);
       }
     };
-
-    recognition.onerror = (event: any) => {
-      console.error("Speech recognition error", event.error);
-      setIsDictating(false);
-    };
-
-    recognition.onend = () => {
-      setIsDictating(false);
-    };
+    recognition.onerror = () => setIsDictating(false);
+    recognition.onend = () => setIsDictating(false);
 
     recognitionRef.current = recognition;
     recognition.start();
   };
 
   const handleSend = async () => {
-    if (!input.trim() && attachments.length === 0) return;
+    if ((!input.trim() && attachments.length === 0) || isReasoning) return;
 
+    const promptText = input;
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: promptText,
       attachments: attachments.length > 0 ? attachments : undefined
     };
 
-    // Update title if it's the first message
     let updatedChats = chats.map(chat => {
       if (chat.id === currentChatId) {
         const newMessages = [...chat.messages, userMsg];
-        const newTitle = chat.messages.length === 0 ? (input.length > 30 ? input.substring(0, 30) + '...' : input) : chat.title;
-        return { ...chat, messages: newMessages, title: newTitle };
+        const newTitle = chat.messages.length === 0
+          ? (promptText.length > 30 ? promptText.substring(0, 30) + '...' : promptText || 'Attachment')
+          : chat.title;
+        return { ...chat, messages: newMessages, title: newTitle || chat.title };
       }
       return chat;
     });
     
     setChats(updatedChats);
-    
     const updatedMessages = updatedChats.find(c => c.id === currentChatId)?.messages || [];
 
     setInput('');
@@ -253,39 +226,58 @@ export default function App() {
     setIsReasoning(true);
     setContributingAgents(['modisa', 'tshepo', 'kgakgamatso', 'tlhaloganyo']);
 
-    const response = await getMultiAgentResponse(input, updatedMessages);
-    
-    if (response.reasoning) {
-      const actualContributors = Array.from(new Set(response.reasoning.map(r => r.agentId as AgentId)));
-      setContributingAgents(actualContributors);
-    }
+    try {
+      const response = await getMultiAgentResponse(promptText, updatedMessages);
 
-    const assistantMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'assistant',
-      content: response.content || '',
-      reasoning: response.reasoning,
-      tags: response.tags,
-      activeAgentId: response.activeAgentId || 'tshepo',
-      isFormulating: false,
-      imageUrl: response.imageUrl,
-      artifacts: response.artifacts,
-      consensusReached: response.consensusReached
-    };
-
-    setChats(prev => prev.map(chat => {
-      if (chat.id === currentChatId) {
-        return { ...chat, messages: [...chat.messages, assistantMsg] };
+      if (response.reasoning) {
+        const actualContributors = Array.from(new Set(response.reasoning.map(r => r.agentId as AgentId)));
+        setContributingAgents(actualContributors);
       }
-      return chat;
-    }));
 
-    setIsReasoning(false);
-    if (response.activeAgentId) setActiveAgent(response.activeAgentId);
-    
-    setTimeout(() => {
-      setContributingAgents([]);
-    }, 3000);
+      const assistantMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: response.content || '',
+        reasoning: response.reasoning,
+        tags: response.tags,
+        activeAgentId: response.activeAgentId || 'tshepo',
+        isFormulating: false,
+        imageUrl: response.imageUrl,
+        artifacts: response.artifacts,
+        consensusReached: response.consensusReached
+      };
+
+      setChats(prev => prev.map(chat => {
+        if (chat.id === currentChatId) {
+          return { ...chat, messages: [...chat.messages, assistantMsg] };
+        }
+        return chat;
+      }));
+
+      if (response.activeAgentId) setActiveAgent(response.activeAgentId);
+    } catch (err) {
+      console.error(err);
+      setChats(prev => prev.map(chat => {
+        if (chat.id === currentChatId) {
+          return {
+            ...chat,
+            messages: [
+              ...chat.messages,
+              {
+                id: (Date.now() + 2).toString(),
+                role: 'assistant' as const,
+                content: 'Something went wrong talking to the AI backend. Is the API running on :8080 and Ollama available?',
+                activeAgentId: 'tshepo' as AgentId,
+              },
+            ],
+          };
+        }
+        return chat;
+      }));
+    } finally {
+      setIsReasoning(false);
+      setTimeout(() => setContributingAgents([]), 3000);
+    }
   };
 
   const clearChat = () => {
@@ -307,7 +299,7 @@ export default function App() {
   };
 
   const copyMessage = (content: string) => {
-    navigator.clipboard.writeText(content);
+    navigator.clipboard.writeText(content).catch(() => {});
   };
 
   const createNewChat = () => {
@@ -342,12 +334,7 @@ export default function App() {
     }
   };
 
-  const handleUpdateAgentIcon = (id: AgentId, iconName: string, isPath = false) => {
-    setAgents(prev => prev.map(a => a.id === id ? { ...a, icon: iconName } : a));
-  };
-
   const renderAgentIcon = (agent: Agent, isActive: boolean, isContributing: boolean) => {
-    const isPath = agent.icon.startsWith('M') || agent.icon.includes(' ');
     const IconComponent = (AVAILABLE_ICONS as any)[agent.icon];
 
     return (
@@ -362,7 +349,7 @@ export default function App() {
         transition={{ 
           repeat: Infinity, 
           duration: isActive ? 2 : 1.5,
-          ease: "easeInOut"
+          ease: 'easeInOut'
         }}
         className={`w-12 h-12 rounded-custom border flex items-center justify-center transition-all relative
           ${isActive ? 'agent-active bg-primary/10 border-primary' : 
@@ -377,7 +364,6 @@ export default function App() {
           </svg>
         )}
         
-        {/* Contribution Pulse Ring */}
         {isContributing && !isActive && (
           <motion.div 
             initial={{ scale: 0.8, opacity: 0.5 }}
@@ -394,13 +380,8 @@ export default function App() {
     );
   };
 
-  // Authentication screen loading
-  // App starts directly without authentication
-
-  // Main application
   return (
     <div className="h-screen flex overflow-hidden bg-dark-bg text-gray-100 font-sans">
-      {/* Sidebar */}
       <AnimatePresence>
         {isSidebarOpen && (
           <>
@@ -475,13 +456,15 @@ export default function App() {
               <div className="p-4 border-t border-white/10">
                 <div className="flex items-center gap-3 p-2 rounded-xl bg-white/5 border border-white/10">
                   <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary">
-                    MA
+                    G
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-bold truncate">Michael Aaron</p>
-                    <p className="text-[8px] text-gray-500 truncate">Pro Researcher</p>
+                    <p className="text-[10px] font-bold truncate">Guest</p>
+                    <p className="text-[8px] text-gray-500 truncate">Local session</p>
                   </div>
-                  <Settings className="w-3 h-3 text-gray-500 cursor-pointer hover:text-primary" />
+                  <button type="button" onClick={() => setShowSettings(true)}>
+                    <Settings className="w-3 h-3 text-gray-500 cursor-pointer hover:text-primary" />
+                  </button>
                 </div>
               </div>
             </motion.aside>
@@ -490,7 +473,6 @@ export default function App() {
       </AnimatePresence>
 
       <div className="flex-1 flex flex-col min-w-0 relative">
-        {/* Header */}
         <header className="w-full pt-12 pb-4 px-6 glass-panel border-b border-white/10 z-20">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
@@ -512,7 +494,7 @@ export default function App() {
                 <button 
                   onClick={() => setShowSettings(true)}
                   className="p-1 text-gray-500 hover:text-primary transition-colors"
-                  title="Agent Customization"
+                  title="Settings"
                 >
                   <Settings className="w-3 h-3" />
                 </button>
@@ -570,8 +552,16 @@ export default function App() {
         </div>
       </header>
 
-      {/* Chat Area */}
       <main ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-6 scroll-smooth">
+        {messages.length === 0 && !isReasoning && (
+          <div className="h-full flex flex-col items-center justify-center text-center opacity-70 px-6">
+            <Zap className="w-10 h-10 text-primary mb-4" />
+            <p className="text-sm font-bold text-primary uppercase tracking-widest mb-2">Potso AI</p>
+            <p className="text-xs text-gray-400 max-w-md">
+              Multi-agent reasoning on open-source models. Ask anything — Modisa, Tshepo, Kgakgamatso and Tlhaloganyo collaborate on the answer.
+            </p>
+          </div>
+        )}
         <AnimatePresence initial={false}>
           {messages.map((msg) => (
             <motion.div
@@ -615,8 +605,7 @@ export default function App() {
                 </div>
               ) : (
                 <div className="space-y-4 w-full">
-                  {/* Reasoning Chain */}
-                  {msg.reasoning && (
+                  {msg.reasoning && msg.reasoning.length > 0 && (
                     <div className="ml-2 pl-4 border-l border-primary/30 py-2 space-y-3">
                       {msg.reasoning.map((step, idx) => (
                         <motion.div 
@@ -655,7 +644,6 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* Main Response */}
                   <div className="max-w-[90%] p-4 rounded-custom glass-panel glow-border border-primary/20 text-sm leading-relaxed relative group/msg">
                     <div className="absolute -right-16 top-2 opacity-0 group-hover/msg:opacity-100 transition-opacity flex gap-1">
                       <button onClick={() => copyMessage(msg.content)} className="p-1.5 text-gray-500 hover:text-primary bg-dark-bg rounded-md border border-white/10" title="Copy">
@@ -673,45 +661,20 @@ export default function App() {
                           className="w-2 h-2 bg-primary rounded-full" 
                         />
                         <span className="text-[10px] font-bold tracking-widest text-primary uppercase">
-                          {agents.find(a => a.id === msg.activeAgentId)?.name || msg.activeAgentId || 'Tshepo'} is formulating
+                          {agents.find(a => a.id === msg.activeAgentId)?.name || msg.activeAgentId || 'Tshepo'}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         {msg.consensusReached && (
                           <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[9px] font-bold text-emerald-400 uppercase tracking-widest">
                             <Users className="w-2 h-2" />
-                            Consensus Reached
-                          </div>
-                        )}
-                        {debugMode && (
-                          <div className="px-1.5 py-0.5 rounded bg-yellow-500/10 border border-yellow-500/30 text-[8px] font-bold text-yellow-500 uppercase tracking-tighter">
-                            Trace ID: {msg.id}
+                            Consensus
                           </div>
                         )}
                       </div>
                     </div>
-                    <p className="text-gray-200">{msg.content}</p>
+                    <p className="text-gray-200 whitespace-pre-wrap">{msg.content}</p>
 
-                    {/* Debug Trace Panel */}
-                    {debugMode && msg.role === 'assistant' && (
-                      <div className="mt-4 p-3 rounded-lg bg-black/40 border border-yellow-500/20 font-mono text-[10px] text-yellow-500/70 overflow-x-auto">
-                        <div className="flex items-center gap-2 mb-2 text-yellow-500 font-bold uppercase tracking-widest border-b border-yellow-500/10 pb-1">
-                          <Activity className="w-3 h-3" />
-                          Cognitive Trace
-                        </div>
-                        <pre className="whitespace-pre-wrap">
-                          {JSON.stringify({
-                            agent: msg.activeAgentId,
-                            reasoningSteps: msg.reasoning?.length,
-                            artifacts: msg.artifacts?.length,
-                            consensus: msg.consensusReached,
-                            tags: msg.tags
-                          }, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                    
-                    {/* Shared Workspace / Artifacts */}
                     {msg.artifacts && msg.artifacts.length > 0 && (
                       <div className="mt-4 space-y-3">
                         <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
@@ -720,19 +683,13 @@ export default function App() {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {msg.artifacts.map((artifact: Artifact) => (
-                            <div key={artifact.id} className="p-3 rounded-xl bg-white/5 border border-white/10 hover:border-primary/30 transition-all group cursor-pointer">
+                            <div key={artifact.id} className="p-3 rounded-xl bg-white/5 border border-white/10">
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-[10px] font-bold text-primary truncate pr-2">{artifact.title}</span>
                                 <span className="text-[8px] px-1.5 py-0.5 rounded bg-white/10 text-gray-400 uppercase">{artifact.type}</span>
                               </div>
-                              <div className="text-[10px] text-gray-400 line-clamp-2 font-mono bg-black/20 p-2 rounded border border-white/5">
+                              <div className="text-[10px] text-gray-400 line-clamp-3 font-mono bg-black/20 p-2 rounded border border-white/5">
                                 {artifact.content}
-                              </div>
-                              <div className="mt-2 flex items-center gap-1">
-                                <div className="w-3 h-3 rounded-full bg-primary/20 flex items-center justify-center text-[6px] font-bold text-primary uppercase">
-                                  {artifact.createdBy[0]}
-                                </div>
-                                <span className="text-[8px] text-gray-500 uppercase">Created by {artifact.createdBy}</span>
                               </div>
                             </div>
                           ))}
@@ -740,17 +697,12 @@ export default function App() {
                       </div>
                     )}
                     {msg.imageUrl && (
-                      <div className="mt-4 rounded-xl overflow-hidden border border-white/10 shadow-2xl">
-                        <img 
-                          src={msg.imageUrl} 
-                          alt="Generated synthesis" 
-                          className="w-full h-auto object-cover"
-                          referrerPolicy="no-referrer"
-                        />
+                      <div className="mt-4 rounded-xl overflow-hidden border border-white/10">
+                        <img src={msg.imageUrl} alt="Generated" className="w-full h-auto object-cover" />
                       </div>
                     )}
-                    {msg.tags && (
-                      <div className="mt-4 flex gap-2">
+                    {msg.tags && msg.tags.length > 0 && (
+                      <div className="mt-4 flex gap-2 flex-wrap">
                         {msg.tags.map(tag => (
                           <span key={tag} className="text-[10px] bg-white/5 border border-white/10 px-2 py-1 rounded">
                             {tag}
@@ -777,7 +729,6 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      {/* Footer */}
       <footer className="p-4 pb-8 bg-gradient-to-t from-dark-bg via-dark-bg/90 to-transparent">
         <div className="max-w-4xl mx-auto relative">
           {attachments.length > 0 && (
@@ -812,7 +763,7 @@ export default function App() {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
               placeholder="Ask Potso..."
               className="flex-1 bg-transparent border-none focus:outline-none text-sm py-3 text-gray-100 placeholder-gray-500"
             />
@@ -823,9 +774,6 @@ export default function App() {
                 title="Attach file"
               >
                 <Paperclip className="h-5 w-5" strokeWidth={1.5} />
-              </button>
-              <button className="p-2 text-gray-400 hover:text-primary transition-colors">
-                <Camera className="h-5 w-5" strokeWidth={1.5} />
               </button>
               <button 
                 onClick={handleSpeechToText}
@@ -866,7 +814,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Voice Settings Modal */}
       <AnimatePresence>
         {showVoiceSettings && (
           <motion.div 
@@ -886,7 +833,6 @@ export default function App() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-
               <div className="flex-1 overflow-y-auto p-4 space-y-6">
                 <div className="space-y-2">
                   <label className="text-[10px] text-gray-400 uppercase font-bold">Language</label>
@@ -899,27 +845,10 @@ export default function App() {
                     <option value="Spanish">Spanish</option>
                     <option value="French">French</option>
                     <option value="German">German</option>
-                    <option value="Italian">Italian</option>
-                    <option value="Japanese">Japanese</option>
-                    <option value="Korean">Korean</option>
-                    <option value="Mandarin">Mandarin</option>
-                    <option value="Hindi">Hindi</option>
-                    <option value="Arabic">Arabic</option>
-                    <option value="Portuguese">Portuguese</option>
-                    <option value="Russian">Russian</option>
-                    <option value="Dutch">Dutch</option>
-                    <option value="Turkish">Turkish</option>
-                    <option value="Swedish">Swedish</option>
-                    <option value="Indonesian">Indonesian</option>
-                    <option value="Filipino">Filipino</option>
-                    <option value="Vietnamese">Vietnamese</option>
-                    <option value="Thai">Thai</option>
-                    <option value="Greek">Greek</option>
                   </select>
                 </div>
-
                 <div className="space-y-2">
-                  <label className="text-[10px] text-gray-400 uppercase font-bold">Accent (Voice Model)</label>
+                  <label className="text-[10px] text-gray-400 uppercase font-bold">Accent</label>
                   <select 
                     value={voiceAccent}
                     onChange={(e) => setVoiceAccent(e.target.value)}
@@ -928,27 +857,21 @@ export default function App() {
                     <option value="Zephyr">Zephyr</option>
                     <option value="Puck">Puck</option>
                     <option value="Charon">Charon</option>
-                    <option value="Kore">Kore</option>
-                    <option value="Fenrir">Fenrir</option>
                   </select>
                 </div>
-
                 <div className="space-y-2">
-                  <label className="text-[10px] text-gray-400 uppercase font-bold">Speaking Speed</label>
+                  <label className="text-[10px] text-gray-400 uppercase font-bold">Speed</label>
                   <select 
                     value={voiceSpeed}
                     onChange={(e) => setVoiceSpeed(e.target.value)}
                     className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary text-white"
                   >
-                    <option value="Very Slow">Very Slow</option>
                     <option value="Slow">Slow</option>
                     <option value="Normal">Normal</option>
                     <option value="Fast">Fast</option>
-                    <option value="Very Fast">Very Fast</option>
                   </select>
                 </div>
               </div>
-
               <div className="p-4 border-t border-white/10">
                 <button 
                   onClick={() => setShowVoiceSettings(false)}
@@ -962,10 +885,9 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Settings Panel */}
       <AnimatePresence>
         {showSettings && (
-          <SettingsPanel user={user} onClose={() => setShowSettings(false)} />
+          <SettingsPanel user={GUEST_USER} onClose={() => setShowSettings(false)} />
         )}
       </AnimatePresence>
     </div>
