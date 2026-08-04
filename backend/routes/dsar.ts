@@ -8,14 +8,10 @@ import {
   listDsar,
   type DsarType,
 } from '../services/dsarService.js';
+import { audit } from '../services/auditLog.js';
 
 const router = Router();
 
-/**
- * POST /api/dsar/request
- * Body: { type, email, userId?, notes?, rectificationPayload? }
- * Returns: { id, token, status, ... } — token shown once for subject access
- */
 router.post('/request', async (req, res) => {
   try {
     const { type, email, userId, notes, rectificationPayload } = req.body || {};
@@ -25,6 +21,13 @@ router.post('/request', async (req, res) => {
       userId,
       notes,
       rectificationPayload,
+    });
+
+    audit('dsar.request', {
+      id: request.id,
+      type: request.type,
+      status: request.status,
+      emailDomain: String(email || '').split('@')[1] || null,
     });
 
     res.status(201).json({
@@ -46,7 +49,6 @@ router.post('/request', async (req, res) => {
   }
 });
 
-/** GET /api/dsar/:id?token= */
 router.get('/:id', (req, res) => {
   const dsar = getDsar(req.params.id);
   if (!dsar) return res.status(404).json({ error: 'Not found' });
@@ -78,7 +80,6 @@ router.get('/:id', (req, res) => {
   });
 });
 
-/** GET /api/dsar/:id/export?token= */
 router.get('/:id/export', (req, res) => {
   const dsar = getDsar(req.params.id);
   if (!dsar) return res.status(404).json({ error: 'Not found' });
@@ -95,12 +96,13 @@ router.get('/:id/export', (req, res) => {
   const body = readExport(dsar.id);
   if (!body) return res.status(404).json({ error: 'Export not ready' });
 
+  audit('dsar.export', { id: dsar.id });
+
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Content-Disposition', `attachment; filename="${dsar.id}-export.json"`);
   res.send(body);
 });
 
-/** POST /api/dsar/:id/process — re-run automation (API key or DSAR token) */
 router.post('/:id/process', async (req, res) => {
   const dsar = getDsar(req.params.id);
   if (!dsar) return res.status(404).json({ error: 'Not found' });
@@ -118,6 +120,7 @@ router.post('/:id/process', async (req, res) => {
   }
 
   const updated = await processDsar(req.params.id, { auto: false });
+  audit('dsar.process', { id: updated?.id, status: updated?.status });
   res.json({
     id: updated?.id,
     status: updated?.status,
@@ -126,7 +129,6 @@ router.post('/:id/process', async (req, res) => {
   });
 });
 
-/** GET /api/dsar — admin list (requires API_ACCESS_KEY) */
 router.get('/', (req, res) => {
   const adminKey = process.env.API_ACCESS_KEY;
   if (!adminKey) {
@@ -138,6 +140,7 @@ router.get('/', (req, res) => {
       req.headers.authorization === `Bearer ${adminKey}`);
   if (!ok) return res.status(401).json({ error: 'Unauthorized' });
 
+  audit('dsar.list', {});
   res.json({ requests: listDsar(100) });
 });
 

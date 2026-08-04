@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { runMaintenance } from '../services/maintenance.js';
 import { getRetentionDays, TTL_FIELD } from '../services/retention.js';
 import { isFirebaseReady } from '../config/firebase.js';
+import { audit } from '../services/auditLog.js';
 
 const router = Router();
 
@@ -26,11 +27,14 @@ function requireAdmin(req: any, res: any): boolean {
   return true;
 }
 
-/** POST /api/admin/maintenance — run retention purges now */
 router.post('/maintenance', async (req, res) => {
   if (!requireAdmin(req, res)) return;
   try {
     const report = await runMaintenance();
+    audit('admin.maintenance', {
+      exportsDeleted: report.dsarExportsDeleted,
+      ticketsArchived: report.dsarTicketsArchived,
+    });
     res.json({ ok: true, report });
   } catch (e) {
     res.status(500).json({
@@ -39,7 +43,6 @@ router.post('/maintenance', async (req, res) => {
   }
 });
 
-/** GET /api/admin/policy-status — operational policy snapshot */
 router.get('/policy-status', (req, res) => {
   if (!requireAdmin(req, res)) return;
   res.json({
@@ -62,10 +65,7 @@ router.get('/policy-status', (req, res) => {
       procedures: 'docs/PROCEDURES.md',
       policyPack: 'docs/POLICY_PACK.md',
       gdpr: 'docs/GDPR_CHECKLIST.md',
-      jurisdictions: 'docs/JURISDICTIONS.md',
-      modelLicenses: 'docs/MODEL_LICENSES.md',
-      firestoreTtl: 'docs/FIRESTORE_TTL.md',
-      dsar: 'docs/DSAR.md',
+      dsarUi: '/dsar.html',
     },
   });
 });
