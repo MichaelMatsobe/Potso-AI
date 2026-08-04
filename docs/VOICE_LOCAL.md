@@ -1,23 +1,18 @@
-# Local Whisper + Piper integration (open source)
+# Local Whisper + Piper (free open source)
 
-Fully offline voice path for Potso — no cloud STT/TTS.
+Optional upgrade over browser Web Speech. Fully offline when configured.
 
-## Target pipeline
+## API routes (Potso)
 
-```
-Browser mic (WAV/WebM)
-    → POST /api/voice/stt  → whisper.cpp server (/inference)
-    → POST /api/ai/chat    → Ollama / Freebuff
-    → POST /api/voice/tts  → Piper HTTP wrapper
-    → browser Audio playback (WAV/PCM)
-```
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/voice/status` | Local STT/TTS readiness |
+| POST | `/api/voice/stt` | `{ audioBase64, mimeType }` → `{ text }` |
+| POST | `/api/voice/tts` | `{ text }` → `audio/wav` |
 
-Current **Go Live** uses browser Web Speech APIs (free, zero install).
-This document is the **optional upgrade** when quality/privacy require local models.
+When URLs are unset, status reports `mode: browser` and Live Voice uses Web Speech APIs.
 
-## Components
-
-### 1. whisper.cpp (STT)
+## Setup whisper.cpp (STT)
 
 ```bash
 git clone https://github.com/ggml-org/whisper.cpp
@@ -26,60 +21,41 @@ bash ./models/download-ggml-model.sh base.en
 ./build/bin/whisper-server -m models/ggml-base.en.bin --host 127.0.0.1 --port 8178
 ```
 
-Inference:
-
-```bash
-curl -X POST http://127.0.0.1:8178/inference \
-  -F file=@utterance.wav \
-  -F response_format=json
-```
-
-| Model | Approx size | Speed | Quality |
-|-------|-------------|-------|---------|
-| tiny.en | ~75MB | fastest | low |
-| base.en | ~150MB | fast | good default |
-| small.en | ~500MB | medium | better |
-
-### 2. Piper (TTS)
-
-Piper (OHF-Voice/piper1-gpl successor of rhasspy/piper) is CPU-friendly neural TTS.
-
-Typical wrapper API (community patterns):
-
-- `POST /tts` `{ "text": "..." }` → `audio/wav`
-- or WebSocket PCM stream (piper-streaming projects)
-
-Example env:
-
 ```env
 VOICE_STT_URL=http://127.0.0.1:8178/inference
-VOICE_TTS_URL=http://127.0.0.1:5001/tts
-VOICE_MODE=local   # browser | local
 ```
 
-### 3. Potso integration points
+## Setup Piper (TTS)
 
-| Module | Role |
-|--------|------|
-| `backend/services/voiceLocal.ts` | HTTP clients for STT/TTS |
-| `POST /api/voice/stt` | multipart audio → transcript |
-| `POST /api/voice/tts` | text → audio/wav |
-| `LiveVoiceModal` | when `VOICE_MODE=local`, record blob → STT → AI → TTS play |
+Install a Piper HTTP wrapper (community) or binary + thin server on port 5001.
 
-## Latency budget (local, expected)
+```env
+VOICE_TTS_URL=http://127.0.0.1:5001/tts
+```
 
-| Stage | Target P50 |
-|-------|------------|
-| Capture + encode | 50–100ms |
-| Whisper base.en (short utterance) | 200–800ms (CPU) |
-| Ollama llama3.2 short answer | 500–3000ms |
-| Piper sentence | 50–300ms |
-| **Round trip** | **~1–4s** |
+## Verify
 
-Browser Web Speech is often faster TTFA (time-to-first-audio) but lower quality/privacy.
+```bash
+curl -s http://localhost:8080/api/voice/status
+curl -s http://localhost:8080/api/health | jq .voiceLocal
+```
 
-## Recommendation
+## MCP (optional, free open source)
 
-1. Keep **browser** path as default (zero deps).
-2. Add **local** path behind `VOICE_MODE=local` when STT/TTS URLs respond healthy.
-3. Prefer **WebSocket PCM** later only if sub-second streaming is required (see WEBRTC.md).
+You can expose the same tools via an open-source MCP server for agents/CLI:
+
+- Tool `voice_stt` → POST `/api/voice/stt`
+- Tool `voice_tts` → POST `/api/voice/tts`
+- Tool `ai_chat` → POST `/api/ai/chat`
+
+No paid MCP hosts required — run locally (e.g. community MCP servers over stdio/HTTP).
+
+## License / cost
+
+| Component | Cost |
+|-----------|------|
+| whisper.cpp | Free, open source |
+| Piper | Free, open source |
+| Ollama models | Free, open weights |
+| Browser Web Speech | Free (OS) |
+| Gemini / paid APIs | **Not used** |

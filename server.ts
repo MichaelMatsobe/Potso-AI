@@ -7,12 +7,14 @@ import initializeFirebase, { isFirebaseReady } from './backend/config/firebase.j
 import chatRoutes from './backend/routes/chat.js';
 import authRoutes from './backend/routes/auth.js';
 import aiRoutes from './backend/routes/ai.js';
+import voiceRoutes from './backend/routes/voice.js';
 import {
   getProvider,
   listOpenSourceModels,
   listFreebuffModels,
   probeOllama,
 } from './backend/services/aiService.js';
+import { isLocalVoiceConfigured, probeLocalVoice } from './backend/services/voiceLocal.js';
 
 dotenv.config({ path: '.env.local' });
 
@@ -26,8 +28,8 @@ try {
 }
 
 app.use(cors({ origin: process.env.ALLOWED_ORIGINS?.split(',') || '*' }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ limit: '15mb', extended: true }));
 
 app.get('/api/health', async (_req, res) => {
   let provider: 'ollama' | 'freebuff' = 'ollama';
@@ -42,6 +44,11 @@ app.get('/api/health', async (_req, res) => {
     ollama = await probeOllama();
   }
 
+  const voiceConfigured = isLocalVoiceConfigured();
+  const voice = voiceConfigured
+    ? await probeLocalVoice()
+    : { stt: false, tts: false, detail: 'unconfigured' };
+
   res.json({
     status: provider === 'ollama' ? (ollama.ok ? 'ok' : 'degraded') : 'ok',
     timestamp: new Date().toISOString(),
@@ -52,9 +59,14 @@ app.get('/api/health', async (_req, res) => {
     ollama,
     firebaseReady: isFirebaseReady(),
     guestMode: true,
-    // Free browser voice always available (Web Speech API)
     liveVoiceAvailable: true,
-    liveVoiceMode: 'browser-speech',
+    liveVoiceMode: voice.stt || voice.tts ? 'local+browser-fallback' : 'browser-speech',
+    voiceLocal: {
+      configured: voiceConfigured,
+      sttOnline: voice.stt,
+      ttsOnline: voice.tts,
+      detail: voice.detail,
+    },
     ollamaBaseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434/v1',
     ollamaModel: process.env.OLLAMA_MODEL || 'llama3.2',
     openSourceModels: listOpenSourceModels(),
@@ -62,12 +74,16 @@ app.get('/api/health', async (_req, res) => {
     paidServices: false,
     endpoints: {
       publicAiChat: 'POST /api/ai/chat',
+      voiceStatus: 'GET /api/voice/status',
+      voiceStt: 'POST /api/voice/stt',
+      voiceTts: 'POST /api/voice/tts',
       health: 'GET /api/health',
     },
   });
 });
 
 app.use('/api/ai', aiRoutes);
+app.use('/api/voice', voiceRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/chat', chatRoutes);
 
@@ -87,7 +103,8 @@ async function startServer() {
     console.log(`🚀 API  http://localhost:${API_PORT}`);
     console.log(`💚 Health http://localhost:${API_PORT}/api/health`);
     console.log(`🤖 AI   POST http://localhost:${API_PORT}/api/ai/chat`);
-    console.log(`🧠 Provider ${getProvider()} (open-source / free only — no Gemini)`);
+    console.log(`🎙️ Voice GET  http://localhost:${API_PORT}/api/voice/status`);
+    console.log(`🧠 Provider ${getProvider()} (free/open-source only)`);
     console.log(`🔥 Firebase ${isFirebaseReady() ? 'ready' : 'guest mode'}`);
   });
 }
