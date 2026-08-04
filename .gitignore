@@ -10,3 +10,4 @@ grep_results.txt
 serviceAccountKey.json
 *.local
 data/dsar/
+data/audit/

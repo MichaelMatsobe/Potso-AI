@@ -12,14 +12,23 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
-      # Optional local voice (host network or sidecar)
+      API_ACCESS_KEY: ${API_ACCESS_KEY:-}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-60}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RETENTION_CHAT_DAYS: ${RETENTION_CHAT_DAYS:-180}
+      RETENTION_MESSAGE_DAYS: ${RETENTION_MESSAGE_DAYS:-180}
+      RETENTION_DSAR_EXPORT_DAYS: ${RETENTION_DSAR_EXPORT_DAYS:-30}
+      RETENTION_DSAR_TICKET_DAYS: ${RETENTION_DSAR_TICKET_DAYS:-730}
+      RETENTION_AUTO_PURGE: ${RETENTION_AUTO_PURGE:-true}
+      RETENTION_PURGE_INTERVAL_HOURS: ${RETENTION_PURGE_INTERVAL_HOURS:-24}
       VOICE_STT_URL: ${VOICE_STT_URL:-}
       VOICE_TTS_URL: ${VOICE_TTS_URL:-}
-      # Optional Firebase (guest mode works without)
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
       FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
       FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:-}
       FIREBASE_DATABASE_URL: ${FIREBASE_DATABASE_URL:-}
+    volumes:
+      - potso_data:/app/data
     depends_on:
       - ollama
     restart: unless-stopped
@@ -30,7 +39,6 @@ services:
       retries: 3
       start_period: 40s
 
-  # Free open-source LLM runtime
   ollama:
     image: ollama/ollama:latest
     ports:
@@ -41,3 +49,4 @@ services:
 
 volumes:
   ollama_data:
+  potso_data:
