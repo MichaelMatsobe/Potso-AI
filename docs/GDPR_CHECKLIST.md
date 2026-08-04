@@ -1,66 +1,59 @@
 # GDPR / privacy compliance checklist
 
-**Not legal advice.** Complete with your counsel before processing personal data of EU/EEA (and UK) residents.
+**Operator:** Michael Aaron Matsobe (default)  
+**Not legal advice.** Complete before processing EU/UK personal data at scale.
 
-## Operator identity (fill in)
+## Operator identity
 
-| Field | Placeholder |
-|-------|-------------|
-| Legal entity name | `[OPERATOR_LEGAL_NAME]` |
-| Registered address | `[OPERATOR_ADDRESS]` |
-| Contact email | `[OPERATOR_PRIVACY_EMAIL]` |
-| Data Protection Officer (if required) | `[OPERATOR_DPO_EMAIL]` |
-| Supervisory authority | `[SUPERVISORY_AUTHORITY]` |
-| Lead authority (cross-border) | `[LEAD_SA]` |
+| Field | Value |
+|-------|--------|
+| Legal name | Michael Aaron Matsobe |
+| Address | *Add if public controller* |
+| Privacy email / contact | GitHub `MichaelMatsobe` |
+| DPO | Not appointed by default |
+| Supervisory authority | *EU SA / ICO / Information Regulator SA as applicable* |
 
-## Lawful basis map (Art. 6)
+## Lawful basis map
 
-| Processing | Typical basis | Your choice |
-|------------|---------------|-------------|
-| Guest chat on self-hosted instance | Legitimate interest / consent | `[BASIS_CHAT]` |
-| Account / Firebase auth | Contract / consent | `[BASIS_ACCOUNT]` |
-| Voice audio (browser or Whisper) | Consent | `[BASIS_VOICE]` |
-| Logs / security | Legitimate interest | `[BASIS_LOGS]` |
-| Analytics (if any) | Consent | `[BASIS_ANALYTICS]` |
+| Processing | Basis |
+|------------|--------|
+| Chat | Contract / legitimate interests |
+| Account (Firebase) | Contract |
+| Voice | Consent |
+| Logs | Legitimate interests |
+| DSAR | Legal obligation |
 
 ## Checklist
 
 ### Governance
-- [ ] Document processing activities (RoPA) — `[ROPA_LINK]`
-- [ ] Appoint DPO if required — `[DPO_STATUS]`
-- [ ] DPIA for AI profiling / large-scale sensitive data — `[DPIA_STATUS]`
-- [ ] Processor agreements with Firebase / hosts / Freebuff — `[DPA_STATUS]`
+- [x] Processing described in PRIVACY.md
+- [x] DSAR automation (`/dsar.html`, `/api/dsar/*`)
+- [x] Retention defaults documented and automated where possible
+- [ ] Formal RoPA document if required for organisation size
+- [ ] DPO / representatives appointed when legally required
+- [ ] DPAs with Google Firebase / hosts if used
 
 ### Transparency
-- [ ] Privacy policy published (adapt `PRIVACY.md`) — URL: `[PRIVACY_URL]`
-- [ ] Terms published — URL: `[TERMS_URL]`
-- [ ] Disclose AI use and that outputs may be inaccurate
-- [ ] Disclose model providers and locations (local vs third country)
+- [x] Privacy + Terms in repo and `/privacy.html`, `/terms.html`
+- [x] AI inaccuracy disclosed in Terms
+- [x] Local vs optional cloud processing disclosed
 
-### Data minimisation & security (Art. 5, 32)
-- [ ] `API_ACCESS_KEY` set in production
-- [ ] Rate limits enabled
-- [ ] HTTPS only
-- [ ] `ALLOWED_ORIGINS` restricted
-- [ ] Ollama / Whisper not public without auth
-- [ ] Retention schedule: chat `[RETENTION_CHAT]`, logs `[RETENTION_LOGS]`
+### Security
+- [x] API key support, rate limits, security headers
+- [x] Production env template (`.env.production.example`)
+- [ ] HTTPS at edge (operator)
+- [ ] Restrict `ALLOWED_ORIGINS` (operator)
+- [ ] Firestore TTL enabled in GCP when using Firebase (run `scripts/enable-firestore-ttl.sh`)
 
-### Data subject rights (Art. 12–22)
-- [ ] Access process — `[DSAR_PROCESS]`
-- [ ] Erasure process — `[ERASURE_PROCESS]`
-- [ ] Portability format — `[PORTABILITY_FORMAT]`
-- [ ] Response SLA (≤30 days) — tracked in `[DSAR_TRACKER]`
-
-### International transfers (Ch. V)
-- [ ] List transfer tools (SCCs, adequacy) — `[TRANSFER_TOOL]`
-- [ ] Sub-processors list — `[SUBPROCESSORS_URL]`
+### Rights
+- [x] Access / portability / erasure / restriction / rectification via DSAR
+- [x] Guest local clear on `/dsar.html`
+- [ ] Human escalation path staffed for disputes
 
 ### Breach
-- [ ] Incident response plan — `[IR_PLAN_LINK]`
-- [ ] 72-hour notification procedure — `[BREACH_NOTIFY]`
+- [ ] Incident contacts and 72h notification playbook customised for operator
 
-## Potso-specific notes
+## Potso-specific
 
-- Default **guest + Ollama** can keep prompts on infrastructure you control.
-- **Browser speech** may send audio to the OS/browser vendor — disclose this.
-- **Freebuff / cloud Firebase** are separate controllers/processors — complete DPAs.
+- Prefer **Ollama on operator infrastructure** to minimise transfers.
+- Browser speech may leave the device — disclosed in Privacy.

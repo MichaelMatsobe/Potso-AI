@@ -1,60 +1,73 @@
 # Privacy Notice — Potso AI
 
-**Effective date:** 2026-08-04
+**Effective date:** 2026-08-04  
+**Software:** Potso AI (open source, Apache-2.0)  
+**Operator / author:** Michael Aaron Matsobe  
+**Contact (software / privacy enquiries):** via the GitHub profile for repository `MichaelMatsobe/Potso-AI`
 
-This notice describes how the **Potso AI software** handles data when used as designed.  
-It is a **template for self-hosted and local use**. It is **not legal advice** and may not satisfy every jurisdiction (e.g. full GDPR/POPIA controller documentation).
+> If you deploy a **public** instance under a company name, replace the operator block with your legal entity and publish that version to users. This notice describes the default self-hosted / author-operated design.
 
-Operators who offer Potso AI to the public must publish their own privacy policy naming the legal entity, contact details, lawful bases, retention, and user rights.
+## 1. Who is responsible
 
-## 1. Local / guest mode (default)
+| Role | Value |
+|------|--------|
+| Software author | Michael Aaron Matsobe |
+| Self-hosted instance operator | The person or organisation running the server (often the same as the author for private deployments) |
+| Privacy contact | GitHub: `MichaelMatsobe` / repository Security or Issues (private security reports preferred for vulnerabilities) |
 
-When running without Firebase and without external AI APIs:
+## 2. What data is processed
 
-| Data | Where it goes |
-|------|----------------|
-| Chat text | Browser `localStorage` and/or your self-hosted API process memory |
-| AI prompts/responses | Your configured backend (typically **Ollama on your machine/network**) |
-| Voice (browser mode) | Browser SpeechRecognition / speechSynthesis (OS/browser vendor may process audio) |
-| Voice (local Whisper/Piper) | Your STT/TTS services only, if configured |
+| Data | Purpose | Storage |
+|------|---------|---------|
+| Chat prompts/responses (guest) | Provide AI replies | Browser `localStorage`; may be sent to the operator’s API and Ollama |
+| Chat/account (if Firebase enabled) | Sync history, accounts | Google Firebase / Firestore under operator project |
+| DSAR requests | Fulfil data rights | `data/dsar/` on the server |
+| Audit events | Security / compliance | `data/audit/audit.jsonl` |
+| Voice (browser) | Speech features | Device OS/browser speech services may process audio |
+| Voice (local Whisper/Piper) | Speech features | Operator’s local STT/TTS only |
 
-**No Gemini or paid AI APIs are used by the default configuration on `dev/freebuff-provider`.**
+**Default AI path does not use Google Gemini or paid AI APIs.**
 
-## 2. Optional Firebase
+## 3. Lawful bases (when GDPR/UK GDPR/POPIA apply)
 
-If the operator enables Firebase:
+| Processing | Basis |
+|------------|--------|
+| Providing the service the user requests (chat) | Contract / legitimate interests (self-hosted utility) |
+| Account features (Firebase) | Contract |
+| Voice | Consent (microphone permission) |
+| Security logs / rate limits | Legitimate interests |
+| DSAR handling | Legal obligation |
 
-- Account identifiers, profile fields, and synced chat history may be stored in Google Firebase / Firestore under the operator's project.
-- Processing is subject to Google's terms and the operator's configuration.
+## 4. Retention
 
-## 3. Optional Freebuff or other proxies
+| Data | Default |
+|------|---------|
+| Server-synced chats/messages | 180 days (`expireAt` + Firestore TTL when enabled) |
+| DSAR export files | 30 days |
+| DSAR ticket records | 24 months |
+| Guest browser data | Until the user clears site data |
 
-If `AI_PROVIDER=freebuff` (or similar):
+## 5. Sharing
 
-- Prompts and responses are sent to the configured base URL.
-- That service's privacy policy applies.
+Data is not sold. It may be processed by:
 
-## 4. Logs
+- The operator’s infrastructure (Ollama, optional Whisper/Piper)
+- Google Firebase **only if** the operator enables it
+- Optional Freebuff **only if** configured
 
-The Express server may log errors and operational metadata (timestamps, status codes). Operators should avoid logging full prompts in shared environments.
+## 6. International transfers
 
-## 5. Cookies and tracking
+Self-hosted local processing keeps data on the operator’s machines. Firebase or hosted proxies may process data in other regions under those providers’ terms.
 
-The default app does not implement third-party advertising trackers. Session data may use browser storage.
+## 7. Your rights
 
-## 6. Children
+Where applicable (e.g. GDPR, POPIA): access, correction, erasure, restriction, portability, objection.  
+Use **`/dsar.html`** on the instance or `POST /api/dsar/request`.
 
-The software is not directed at children under 13 (or the applicable age in your jurisdiction). Operators should not knowingly collect children's data without appropriate legal basis and parental controls.
+## 8. Children
 
-## 7. Your rights (when an operator processes personal data)
+Not directed at children under 13 (or higher age where required).
 
-Depending on law (e.g. GDPR, UK GDPR, POPIA), individuals may have rights to access, correction, deletion, restriction, portability, and objection. Contact the **operator of the instance you use**, not only the repository author.
+## 9. Changes
 
-## 8. International transfers
-
-Self-hosted local processing keeps data on the operator's infrastructure. Using cloud Firebase or hosted model proxies may transfer data across borders under those providers' rules.
-
-## 9. Contact
-
-- Software author: Michael Aaron Matsobe (GitHub repository owner).
-- For a deployed service: contact the service operator identified in that deployment's privacy policy.
+Updates appear in this repository and on `/privacy.html` for deployed builds.

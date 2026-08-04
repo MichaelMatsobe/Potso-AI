@@ -1,47 +1,45 @@
-# Deployment — Potso AI (free / open source)
+# Deployment — Potso AI
 
-## Legal before you go live
+## Production config (required)
 
-1. Comply with [LICENSE](./LICENSE) (Apache-2.0) and [NOTICE](./NOTICE).
-2. Review [TERMS.md](./TERMS.md) and [PRIVACY.md](./PRIVACY.md); **adapt** them if you offer a public service under your own legal entity.
-3. Comply with **model weight licenses** for any Ollama models you distribute or serve.
-4. If processing personal data in the EU/UK/SA/etc., complete your own DPIA / operator obligations — templates in-repo are starting points only.
-5. Read [SECURITY.md](./SECURITY.md).
+1. Copy **`.env.production.example`** → server **`.env.local`**.
+2. Set a strong **`API_ACCESS_KEY`** (and matching **`VITE_API_ACCESS_KEY`** if the web UI must call protected APIs).
+3. Set **`ALLOWED_ORIGINS`** and **`APP_URL`** to your real HTTPS origin (not `*`).
+4. Keep **`RETENTION_AUTO_PURGE=true`**.
+5. Terminate **TLS** at Caddy/nginx/Traefik in front of port 8080.
 
-Static pages for users: `/privacy.html`, `/terms.html` (from `public/`).
+```bash
+docker compose up -d --build
+docker compose exec ollama ollama pull llama3.2
+curl -s https://YOUR_DOMAIN/api/health
+npm run sop-check   # from repo
+```
+
+## GCP Firestore TTL (when Firebase is used)
+
+App stamps **`expireAt`** on chats/messages. Enable the policy:
+
+```bash
+export GCP_PROJECT=your-gcp-project-id
+chmod +x scripts/enable-firestore-ttl.sh
+./scripts/enable-firestore-ttl.sh
+```
+
+Or Console → Firestore → TTL → field **`expireAt`** for collection groups **`chats`** and **`messages`**.
+
+Details: [docs/FIRESTORE_TTL.md](./docs/FIRESTORE_TTL.md).
+
+## Legal
+
+Operator defaults completed for **Michael Aaron Matsobe** in `PRIVACY.md`, `TERMS.md`, `docs/JURISDICTIONS.md`, `docs/GDPR_CHECKLIST.md`, and public HTML pages.  
+Add company registration address if you incorporate or offer publicly under a legal entity.
 
 ## Readiness
 
-| Area | Status |
+| Item | Status |
 |------|--------|
-| Guest web chat + Ollama | Ready |
-| Browser Live Voice | Ready |
-| Local Whisper/Piper | Optional |
-| Docker Compose + Ollama | Ready |
-| Firebase accounts | Optional |
-| Public multi-tenant hardening | Operator responsibility |
-
-## Self-host
-
-```bash
-git checkout dev/freebuff-provider
-docker compose up -d --build
-docker compose exec ollama ollama pull llama3.2
-curl -s http://localhost:8080/api/health
-```
-
-Production container serves the built UI and API on **port 8080**.
-
-## Environment
-
-See [`.env.example`](./.env.example). Do **not** configure Gemini — unsupported on this branch.
-
-## Production checklist
-
-- [ ] HTTPS
-- [ ] Restrict `ALLOWED_ORIGINS`
-- [ ] Rate limits on AI/voice routes
-- [ ] Ollama not public without auth
-- [ ] Adapted Privacy/Terms with operator identity
-- [ ] Monitoring on `/api/health`
-- [ ] Model license compliance
+| Self-host chat + voice | Ready |
+| Production env template | `.env.production.example` |
+| TTL automation (app side) | Ready; GCP enable once |
+| Legal templates | Author-filled defaults |
+| Public SaaS hardening | Operator HTTPS + keys + CORS |

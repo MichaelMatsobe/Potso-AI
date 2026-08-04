@@ -1,58 +1,47 @@
 # Terms of Use — Potso AI
 
 **Effective date:** 2026-08-04  
-**Software license:** Apache License 2.0 (see [LICENSE](./LICENSE))
+**Software license:** Apache License 2.0 — see [LICENSE](./LICENSE)  
+**Author:** Michael Aaron Matsobe
 
-These Terms govern **use of the Potso AI software** as made available in this repository.  
-They are **not a substitute for legal advice**. If you deploy Potso AI as a public service, you must adapt these terms for your jurisdiction and role as service operator.
+## 1. Agreement
 
-## 1. Nature of the software
+By using Potso AI software or a deployment of it, you agree to these Terms and the Apache-2.0 license terms for the code.
 
-Potso AI is open-source software for multi-agent style chat and optional voice features.  
-Default AI inference is intended to run on **self-hosted open-weight models** (e.g. via Ollama). Optional free proxies (e.g. Freebuff) may be configured by the operator.
+## 2. Service description
 
-## 2. No warranty
+Potso AI provides multi-agent style chat and optional voice features using **open-source / free** AI backends (default: Ollama). Optional components include Firebase accounts and local Whisper/Piper speech.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT, AS SET OUT IN THE APACHE LICENSE 2.0.
+## 3. No warranty
 
-## 3. AI outputs
+THE SOFTWARE AND ANY HOSTED INSTANCE ARE PROVIDED **AS IS**, WITHOUT WARRANTY OF ANY KIND, AS SET OUT IN THE APACHE LICENSE 2.0.
 
-- Outputs may be inaccurate, incomplete, or inappropriate.
-- Do **not** rely on Potso AI as sole authority for medical, legal, financial, safety-critical, or emergency decisions.
-- You are responsible for reviewing outputs before acting on them.
+## 4. AI outputs
 
-## 4. Acceptable use
+Outputs may be wrong or inappropriate. Do not rely on them as the sole basis for medical, legal, financial, safety-critical, or emergency decisions.
 
-You agree not to use the software to:
+## 5. Acceptable use
 
-- Violate applicable law;
-- Infringe others' intellectual property or privacy rights;
-- Generate or distribute child sexual abuse material or content that exploits minors;
-- Engage in fraud, scams, or unauthorized access to systems;
-- Attempt to bypass safety controls of models or infrastructure you do not own.
+You must not use the software to:
 
-Operators who host a multi-user instance should publish their own acceptable-use policy and enforce it.
+- Violate applicable law
+- Infringe intellectual property or privacy rights
+- Create or distribute child sexual abuse material or content that exploits minors
+- Commit fraud, scams, or unauthorized system access
+- Bypass security or rate limits on systems you do not operate
 
-## 5. Self-hosted deployment
+## 6. Accounts and data
 
-If **you** run an instance:
+Guest mode stores chats in the browser. If Firebase is enabled, account data is stored per the Privacy Notice. Data rights requests: `/dsar.html`.
 
-- **You** are the operator and (where personal data is processed) typically the data controller.
-- You must configure security (HTTPS, CORS, access control, rate limits) appropriate to your threat model.
-- You must comply with model licenses for any weights you download and serve.
+## 7. Operator of a public instance
 
-## 6. Third-party services
+If you host Potso AI for others, **you** are responsible for your own terms, privacy notice, security, and compliance in your jurisdiction.
 
-Optional integrations (Firebase, Freebuff, browser speech APIs, etc.) are governed by those providers' terms. Potso AI does not control them.
+## 8. Limitation of liability
 
-## 7. Limitation of liability
-
-To the maximum extent permitted by law, authors and contributors are not liable for damages arising from use or inability to use the software, as further limited by the Apache License 2.0.
-
-## 8. Changes
-
-Terms in this repository may be updated by commits to the project. Deployed operators should version and present their own terms to end users.
+To the maximum extent permitted by law, the author and contributors are not liable for damages arising from use or inability to use the software, subject to the Apache License 2.0.
 
 ## 9. Contact
 
-Project author: Michael Aaron Matsobe (see GitHub profile associated with this repository).
+Michael Aaron Matsobe — GitHub repository `MichaelMatsobe/Potso-AI`.
