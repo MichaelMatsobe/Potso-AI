@@ -1,14 +1,13 @@
 /**
- * Potso-AI unified AI service — Freebuff-first
+ * Potso-AI unified AI service
  *
- * Freebuff CLI (via OpenAI-compatible proxy) is the agent in charge.
- * Gemini is optional only (AI_PROVIDER=gemini).
+ * Priority for "open source + no quotas":
+ *   1. Ollama / local OpenAI-compatible (default) — self-hosted open weights, unlimited
+ *   2. Freebuff proxy — optional; free but regional limits exist
+ *   3. Gemini — optional; requires API key
  *
- * Free model catalog (proxied through Freebuff2API / similar):
- *   deepseek/deepseek-v4-pro | deepseek/deepseek-v4-flash
- *   minimax/* | moonshotai/kimi-* | glm | mimo
- *
- * Optional local fallback: OLLAMA_BASE_URL (true $0 offline)
+ * Recommended open-weight models via Ollama:
+ *   llama3.2, llama3.1, qwen2.5, qwen2.5-coder, deepseek-r1, mistral, phi3, gemma2
  */
 
 import { GoogleGenAI, Type } from "@google/genai";
@@ -46,75 +45,99 @@ export interface MultiAgentResult {
     provider: string;
     model: string;
     fallbackUsed?: boolean;
+    openSource?: boolean;
+    noQuota?: boolean;
   };
 }
 
 // ---------------------------------------------------------------------------
-// Free model catalog (Freebuff / OpenAI-compatible proxies)
-// Order = preferred failover sequence when FREEBUFF_MODEL not set
+// Open-source local model catalog (no quotas when self-hosted)
 // ---------------------------------------------------------------------------
 
-export const FREE_MODEL_CATALOG: Array<{ id: string; label: string; notes: string }> = [
+export const OPEN_SOURCE_LOCAL_MODELS: Array<{
+  id: string;
+  label: string;
+  notes: string;
+  ollamaPull?: string;
+}> = [
   {
-    id: "deepseek/deepseek-v4-pro",
-    label: "DeepSeek V4 Pro",
-    notes: "Strongest Freebuff coding / reasoning default",
+    id: "llama3.2",
+    label: "Llama 3.2",
+    notes: "Meta open weights — good general default",
+    ollamaPull: "llama3.2",
   },
   {
-    id: "deepseek/deepseek-v4-flash",
-    label: "DeepSeek V4 Flash",
-    notes: "Faster / limited-mode friendly",
+    id: "llama3.1",
+    label: "Llama 3.1",
+    notes: "Stronger Llama variant",
+    ollamaPull: "llama3.1",
   },
   {
-    id: "minimax/minimax-m2.7",
-    label: "MiniMax M2.7",
-    notes: "Speed-oriented Freebuff option",
+    id: "qwen2.5",
+    label: "Qwen 2.5",
+    notes: "Alibaba open weights — strong multilingual",
+    ollamaPull: "qwen2.5",
   },
   {
-    id: "moonshotai/kimi-k2.6",
-    label: "Kimi K2.6",
-    notes: "Long-context / agentic",
+    id: "qwen2.5-coder",
+    label: "Qwen 2.5 Coder",
+    notes: "Code-specialized open weights",
+    ollamaPull: "qwen2.5-coder",
   },
   {
-    id: "google/gemini-3.1-flash-lite-preview",
-    label: "Gemini 3.1 Flash Lite (via Freebuff)",
-    notes: "Freebuff routes some Gemini-lite agents internally — still no Google API key",
+    id: "deepseek-r1",
+    label: "DeepSeek R1",
+    notes: "Reasoning-focused open weights (if available in Ollama)",
+    ollamaPull: "deepseek-r1",
+  },
+  {
+    id: "mistral",
+    label: "Mistral",
+    notes: "Mistral open weights — efficient",
+    ollamaPull: "mistral",
+  },
+  {
+    id: "phi3",
+    label: "Phi-3",
+    notes: "Microsoft small open model — low RAM",
+    ollamaPull: "phi3",
+  },
+  {
+    id: "gemma2",
+    label: "Gemma 2",
+    notes: "Google open weights",
+    ollamaPull: "gemma2",
   },
 ];
 
-function getModelCandidates(): string[] {
-  const primary =
-    process.env.FREEBUFF_MODEL ||
-    process.env.OPENAI_MODEL ||
-    FREE_MODEL_CATALOG[0].id;
-
-  const extras = (process.env.FREEBUFF_FALLBACK_MODELS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  const catalogIds = FREE_MODEL_CATALOG.map((m) => m.id);
-  const ordered = [primary, ...extras, ...catalogIds];
-
-  // de-dupe while preserving order
-  return [...new Set(ordered)];
-}
+/** Freebuff models — free but NOT quota-free / not fully open infrastructure */
+export const FREEBUFF_MODELS: Array<{ id: string; label: string; notes: string }> = [
+  { id: "deepseek/deepseek-v4-pro", label: "DeepSeek V4 Pro (Freebuff)", notes: "Freebuff-hosted; regional limits may apply" },
+  { id: "deepseek/deepseek-v4-flash", label: "DeepSeek V4 Flash (Freebuff)", notes: "Faster Freebuff option" },
+  { id: "minimax/minimax-m2.7", label: "MiniMax (Freebuff)", notes: "Freebuff-hosted" },
+];
 
 // ---------------------------------------------------------------------------
-// Provider selection — Freebuff is default / in charge
+// Provider selection — Ollama (open source, no quotas) is default
 // ---------------------------------------------------------------------------
 
-export function getProvider(): "freebuff" | "gemini" | "ollama" {
+export function getProvider(): "ollama" | "freebuff" | "gemini" {
   const explicit = (process.env.AI_PROVIDER || "").toLowerCase().trim();
   if (explicit === "gemini") return "gemini";
-  if (explicit === "ollama") return "ollama";
   if (explicit === "freebuff" || explicit === "openai") return "freebuff";
-  // Default: Freebuff is the agent in charge
-  return "freebuff";
+  if (explicit === "ollama" || explicit === "local") return "ollama";
+
+  // Auto-detect: prefer local open-source when Ollama is configured
+  if (process.env.OLLAMA_BASE_URL) return "ollama";
+  if (process.env.FREEBUFF_BASE_URL || process.env.FREEBUFF_MODEL) return "freebuff";
+
+  // Default: open-source local path (user installs Ollama)
+  return "ollama";
 }
 
 const SYSTEM_PROMPT = `You are Potso, a South African multi-agent cognition system.
-Creator: Michael Aaron Matsobe. Freebuff powers your reasoning (no Gemini API key required).
+Creator: Michael Aaron Matsobe.
+You run on open-source models (self-hosted when possible) with no usage quotas.
 
 Simulate collaboration between exactly these 4 agents:
 - Modisa — deep search and data retrieval
@@ -251,7 +274,7 @@ async function openAICompatibleChat(opts: {
 }): Promise<string> {
   const url = `${opts.baseUrl.replace(/\/$/, "")}/chat/completions`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 90_000);
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 120_000);
 
   try {
     const res = await fetch(url, {
@@ -264,6 +287,7 @@ async function openAICompatibleChat(opts: {
         model: opts.model,
         messages: opts.messages,
         temperature: 0.35,
+        // Ollama often ignores response_format; we still request it when supported
         response_format: { type: "json_object" },
       }),
       signal: controller.signal,
@@ -286,17 +310,7 @@ async function openAICompatibleChat(opts: {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Freebuff path with multi-model failover
-// ---------------------------------------------------------------------------
-
-async function freebuffMultiAgentResponse(
-  prompt: string,
-  history: AIMessage[] = []
-): Promise<MultiAgentResult> {
-  const baseUrl = (process.env.FREEBUFF_BASE_URL || "http://127.0.0.1:8000/v1").replace(/\/$/, "");
-  const apiKey = process.env.FREEBUFF_API_KEY || process.env.OPENAI_API_KEY || "freebuff";
-
+function buildMessages(prompt: string, history: AIMessage[]) {
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
     ...historyToOpenAIMessages(history),
@@ -305,8 +319,106 @@ async function freebuffMultiAgentResponse(
   if (!last || last.role !== "user" || last.content !== prompt) {
     messages.push({ role: "user", content: prompt });
   }
+  return messages;
+}
 
-  const candidates = getModelCandidates();
+// ---------------------------------------------------------------------------
+// Ollama / local open-source path (DEFAULT — no quotas)
+// ---------------------------------------------------------------------------
+
+async function ollamaMultiAgentResponse(
+  prompt: string,
+  history: AIMessage[] = [],
+  asFallback = false
+): Promise<MultiAgentResult> {
+  const baseUrl = (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434/v1").replace(/\/$/, "");
+  const primary = process.env.OLLAMA_MODEL || "llama3.2";
+  const extras = (process.env.OLLAMA_FALLBACK_MODELS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const candidates = [...new Set([primary, ...extras, ...OPEN_SOURCE_LOCAL_MODELS.map((m) => m.id)])];
+
+  const messages = buildMessages(prompt, history);
+  const errors: string[] = [];
+
+  for (let i = 0; i < candidates.length; i++) {
+    const model = candidates[i];
+    try {
+      const content = await openAICompatibleChat({
+        baseUrl,
+        apiKey: process.env.OLLAMA_API_KEY || "ollama",
+        model,
+        messages,
+      });
+
+      const parsed = extractJSON(content);
+      if (parsed) {
+        return normalizeResult(parsed, {
+          provider: "ollama",
+          model,
+          fallbackUsed: asFallback || i > 0,
+          openSource: true,
+          noQuota: true,
+        });
+      }
+
+      if (typeof content === "string" && content.trim()) {
+        return normalizeResult(
+          {
+            answer: content.trim(),
+            reasoning: [
+              {
+                agentId: "tshepo",
+                thought: `Local model ${model} returned non-JSON; delivering raw text.`,
+              },
+            ],
+            tags: ["Ollama", "OpenSource", "SoftFallback"],
+            primaryAgent: "tshepo",
+            consensusReached: false,
+            artifacts: [],
+          },
+          {
+            provider: "ollama",
+            model,
+            fallbackUsed: asFallback || i > 0,
+            openSource: true,
+            noQuota: true,
+          }
+        );
+      }
+
+      errors.push(`${model}: empty`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`${model}: ${msg}`);
+      console.warn(`[Ollama] model failed: ${model} → ${msg}`);
+    }
+  }
+
+  throw new Error(
+    `All local models failed. Is Ollama running? (ollama serve). Attempts: ${errors.join(" | ")}`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Freebuff path (optional — free but may have regional limits)
+// ---------------------------------------------------------------------------
+
+async function freebuffMultiAgentResponse(
+  prompt: string,
+  history: AIMessage[] = []
+): Promise<MultiAgentResult> {
+  const baseUrl = (process.env.FREEBUFF_BASE_URL || "http://127.0.0.1:8000/v1").replace(/\/$/, "");
+  const apiKey = process.env.FREEBUFF_API_KEY || process.env.OPENAI_API_KEY || "freebuff";
+  const primary = process.env.FREEBUFF_MODEL || FREEBUFF_MODELS[0].id;
+  const extras = (process.env.FREEBUFF_FALLBACK_MODELS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const candidates = [...new Set([primary, ...extras, ...FREEBUFF_MODELS.map((m) => m.id)])];
+
+  const messages = buildMessages(prompt, history);
   const errors: string[] = [];
 
   for (let i = 0; i < candidates.length; i++) {
@@ -319,36 +431,32 @@ async function freebuffMultiAgentResponse(
         messages,
       });
 
-      const parsed = extractJSON(typeof content === "string" ? content : JSON.stringify(content));
+      const parsed = extractJSON(content);
       if (parsed) {
         return normalizeResult(parsed, {
           provider: "freebuff",
           model,
           fallbackUsed: i > 0,
+          openSource: false,
+          noQuota: false,
         });
       }
 
-      // Non-JSON but non-empty → usable soft answer
       if (typeof content === "string" && content.trim()) {
         return normalizeResult(
           {
             answer: content.trim(),
-            reasoning: [
-              {
-                agentId: "tshepo",
-                thought: `Model ${model} returned non-JSON; delivering raw text.`,
-              },
-            ],
+            reasoning: [{ agentId: "tshepo", thought: `Freebuff ${model} returned non-JSON.` }],
             tags: ["Freebuff", "SoftFallback"],
             primaryAgent: "tshepo",
             consensusReached: false,
             artifacts: [],
           },
-          { provider: "freebuff", model, fallbackUsed: i > 0 }
+          { provider: "freebuff", model, fallbackUsed: i > 0, openSource: false, noQuota: false }
         );
       }
 
-      errors.push(`${model}: empty body`);
+      errors.push(`${model}: empty`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       errors.push(`${model}: ${msg}`);
@@ -356,70 +464,18 @@ async function freebuffMultiAgentResponse(
     }
   }
 
-  // Optional Ollama local fallback
-  if (process.env.OLLAMA_BASE_URL) {
-    try {
-      return await ollamaMultiAgentResponse(prompt, history, true);
-    } catch (e) {
-      errors.push(`ollama: ${e instanceof Error ? e.message : String(e)}`);
-    }
+  // Fall back to local Ollama if available
+  try {
+    return await ollamaMultiAgentResponse(prompt, history, true);
+  } catch (e) {
+    errors.push(`ollama-fallback: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  throw new Error(`All Freebuff models failed. Attempts: ${errors.join(" | ")}`);
+  throw new Error(`Freebuff failed and local fallback unavailable. ${errors.join(" | ")}`);
 }
 
 // ---------------------------------------------------------------------------
-// Ollama local free fallback
-// ---------------------------------------------------------------------------
-
-async function ollamaMultiAgentResponse(
-  prompt: string,
-  history: AIMessage[] = [],
-  asFallback = false
-): Promise<MultiAgentResult> {
-  const baseUrl = (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434/v1").replace(/\/$/, "");
-  const model = process.env.OLLAMA_MODEL || "llama3.2";
-
-  const messages = [
-    { role: "system", content: SYSTEM_PROMPT },
-    ...historyToOpenAIMessages(history),
-  ];
-  const last = messages[messages.length - 1];
-  if (!last || last.role !== "user" || last.content !== prompt) {
-    messages.push({ role: "user", content: prompt });
-  }
-
-  const content = await openAICompatibleChat({
-    baseUrl,
-    apiKey: "ollama",
-    model,
-    messages,
-  });
-
-  const parsed = extractJSON(content);
-  if (parsed) {
-    return normalizeResult(parsed, {
-      provider: "ollama",
-      model,
-      fallbackUsed: asFallback,
-    });
-  }
-
-  return normalizeResult(
-    {
-      answer: content?.trim() || "Empty Ollama response",
-      reasoning: [{ agentId: "tshepo", thought: "Ollama returned non-JSON." }],
-      tags: ["Ollama", "Local"],
-      primaryAgent: "tshepo",
-      consensusReached: false,
-      artifacts: [],
-    },
-    { provider: "ollama", model, fallbackUsed: asFallback }
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Optional Gemini path (explicit only)
+// Optional Gemini
 // ---------------------------------------------------------------------------
 
 const GEMINI_SCHEMA = {
@@ -484,30 +540,12 @@ async function geminiMultiAgentResponse(
   let text = response.text || "{}";
   text = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "");
   const parsed = extractJSON(text);
-  const result = normalizeResult(parsed || {}, {
+  return normalizeResult(parsed || {}, {
     provider: "gemini",
     model: process.env.GEMINI_MODEL || "gemini-3-flash-preview",
+    openSource: false,
+    noQuota: false,
   });
-
-  if (result.imagePrompt) {
-    try {
-      const imageResponse = await ai.models.generateContent({
-        model: process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image",
-        contents: [{ text: result.imagePrompt }],
-        config: { imageConfig: { aspectRatio: "1:1" } },
-      });
-      for (const part of imageResponse.candidates?.[0]?.content?.parts || []) {
-        if (part.inlineData) {
-          result.imageUrl = `data:image/png;base64,${part.inlineData.data}`;
-          break;
-        }
-      }
-    } catch (imgError) {
-      console.error("Image Generation Error:", imgError);
-    }
-  }
-
-  return result;
 }
 
 // ---------------------------------------------------------------------------
@@ -522,8 +560,8 @@ export async function getMultiAgentResponse(
 
   try {
     if (provider === "gemini") return await geminiMultiAgentResponse(prompt, history);
-    if (provider === "ollama") return await ollamaMultiAgentResponse(prompt, history, false);
-    return await freebuffMultiAgentResponse(prompt, history);
+    if (provider === "freebuff") return await freebuffMultiAgentResponse(prompt, history);
+    return await ollamaMultiAgentResponse(prompt, history, false);
   } catch (error) {
     console.error(`AI provider (${provider}) error:`, error);
     return {
@@ -534,16 +572,29 @@ export async function getMultiAgentResponse(
         },
       ],
       answer:
-        "I encountered an error while processing your request. Ensure your Freebuff OpenAI-compatible proxy is running (see FREEBUFF_SETUP.md), or set OLLAMA_BASE_URL for local fallback.",
-      tags: ["Error", provider],
+        "I encountered an error. For open-source unlimited use: install Ollama (https://ollama.com), run `ollama pull llama3.2` and `ollama serve`, then set OLLAMA_BASE_URL=http://127.0.0.1:11434/v1 in .env.local.",
+      tags: ["Error", provider, "OpenSource"],
       primaryAgent: "tshepo",
       artifacts: [],
       consensusReached: false,
-      _meta: { provider, model: "none" },
+      _meta: { provider, model: "none", openSource: provider === "ollama", noQuota: provider === "ollama" },
     };
   }
 }
 
+export function listOpenSourceModels() {
+  return OPEN_SOURCE_LOCAL_MODELS;
+}
+
+export function listFreebuffModels() {
+  return FREEBUFF_MODELS;
+}
+
+/** @deprecated use listOpenSourceModels */
 export function listFreeModels() {
-  return FREE_MODEL_CATALOG;
+  return OPEN_SOURCE_LOCAL_MODELS.map((m) => ({
+    id: m.id,
+    label: m.label,
+    notes: m.notes,
+  }));
 }

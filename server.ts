@@ -7,7 +7,11 @@ import { fileURLToPath } from "url";
 import initializeFirebase from "./backend/config/firebase.js";
 import chatRoutes from "./backend/routes/chat.js";
 import authRoutes from "./backend/routes/auth.js";
-import { getProvider, listFreeModels } from "./backend/services/aiService.js";
+import {
+  getProvider,
+  listOpenSourceModels,
+  listFreebuffModels,
+} from "./backend/services/aiService.js";
 
 dotenv.config({ path: ".env.local" });
 
@@ -31,11 +35,15 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     timestamp: new Date().toISOString(),
     aiProvider: provider,
-    freebuffBaseUrl: process.env.FREEBUFF_BASE_URL || "http://127.0.0.1:8000/v1",
-    freebuffModel: process.env.FREEBUFF_MODEL || "deepseek/deepseek-v4-pro",
-    ollamaBaseUrl: process.env.OLLAMA_BASE_URL || null,
-    freeModels: listFreeModels(),
-    note: "Freebuff is the primary agent. No Gemini API key required.",
+    openSource: provider === "ollama",
+    noQuota: provider === "ollama",
+    ollamaBaseUrl: process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434/v1",
+    ollamaModel: process.env.OLLAMA_MODEL || "llama3.2",
+    freebuffBaseUrl: process.env.FREEBUFF_BASE_URL || null,
+    openSourceModels: listOpenSourceModels(),
+    freebuffModelsOptional: listFreebuffModels(),
+    note:
+      "Default is Ollama (open-source open weights, self-hosted, no quotas). Freebuff is optional and may have regional limits.",
   });
 });
 
@@ -62,10 +70,9 @@ async function startServer() {
 
   app.listen(API_PORT, "0.0.0.0", () => {
     console.log(`🚀 API Server running on http://localhost:${API_PORT}`);
-    console.log(`🌍 CORS enabled for: ${process.env.ALLOWED_ORIGINS || "*"}`);
     try {
-      console.log(`🤖 AI provider (in charge): ${getProvider()}`);
-      console.log(`📋 Free models catalog: ${listFreeModels().map((m) => m.id).join(", ")}`);
+      const p = getProvider();
+      console.log(`🤖 AI provider: ${p} (openSource=${p === "ollama"}, noQuota=${p === "ollama"})`);
     } catch {
       /* ignore */
     }
