@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import initializeFirebase from "./backend/config/firebase.js";
 import chatRoutes from "./backend/routes/chat.js";
 import authRoutes from "./backend/routes/auth.js";
+import { getProvider } from "./backend/services/aiService.js";
 
 dotenv.config({ path: ".env.local" });
 
@@ -23,7 +24,19 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  let provider = "unknown";
+  try {
+    provider = getProvider();
+  } catch {
+    /* ignore */
+  }
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    aiProvider: provider,
+    freebuffBaseUrl: process.env.FREEBUFF_BASE_URL || null,
+    freebuffModel: process.env.FREEBUFF_MODEL || null,
+  });
 });
 
 // API Routes
@@ -52,6 +65,11 @@ async function startServer() {
   app.listen(API_PORT, "0.0.0.0", () => {
     console.log(`🚀 API Server running on http://localhost:${API_PORT}`);
     console.log(`🌍 CORS enabled for: ${process.env.ALLOWED_ORIGINS || "*"}`);
+    try {
+      console.log(`🤖 AI provider: ${getProvider()}`);
+    } catch {
+      /* ignore */
+    }
   });
 }
 
