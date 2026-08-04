@@ -1,6 +1,6 @@
 # Potso AI
 
-Multi-agent cognition on a **free open-source** stack (**Ollama** default). No Gemini in the default path.
+Multi-agent cognition on a **free open-source** stack (**Ollama** default).
 
 **Author:** Michael Aaron Matsobe  
 **License:** [Apache-2.0](./LICENSE)  
