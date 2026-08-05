@@ -58,10 +58,27 @@ export function normalizeAgentPayload(raw: any): {
   };
 }
 
-export function resolveProvider(env: Record<string, string | undefined>): 'ollama' | 'freebuff' {
-  const explicit = (env.AI_PROVIDER || '').toLowerCase().trim();
+/**
+ * Mirrors backend getProviderMode() — hybrid by default.
+ * FREEBUFF_* alone does NOT force Freebuff-only; that stays auto/hybrid.
+ */
+export function resolveProviderMode(
+  env: Record<string, string | undefined>
+): 'auto' | 'ollama' | 'freebuff' {
+  const explicit = (env.AI_PROVIDER || 'auto').toLowerCase().trim();
   if (explicit === 'freebuff' || explicit === 'openai') return 'freebuff';
   if (explicit === 'ollama' || explicit === 'local') return 'ollama';
-  if (env.FREEBUFF_BASE_URL || env.FREEBUFF_MODEL) return 'freebuff';
-  return 'ollama';
+  if (explicit === 'hybrid' || explicit === 'auto' || explicit === 'both') return 'auto';
+  // Legacy Gemini and unknown values → hybrid open stack
+  return 'auto';
+}
+
+/** Label used for health / UI (auto | ollama | freebuff) */
+export function resolveProvider(
+  env: Record<string, string | undefined>
+): 'ollama' | 'freebuff' | 'auto' {
+  const mode = resolveProviderMode(env);
+  if (mode === 'freebuff') return 'freebuff';
+  if (mode === 'ollama') return 'ollama';
+  return 'auto';
 }

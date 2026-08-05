@@ -19,6 +19,8 @@ jobs:
         run: npm ci || npm install
       - name: SOP artifacts
         run: npm run sop-check
+      - name: Typecheck
+        run: npm run lint
       - name: Unit tests
         run: npm run test:unit
       - name: Perf (local, no server)
