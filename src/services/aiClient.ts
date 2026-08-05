@@ -1,18 +1,19 @@
 import { Message, AgentId } from '../types';
+import { isWebLLMEnabled, isWebGPUAvailable, webllmChat } from './webllmClient';
 
 // Relative /api: works in dev via the Vite proxy, and same-origin in production.
 // Override with VITE_API_URL when the backend is hosted separately.
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 const API_KEY = import.meta.env.VITE_API_ACCESS_KEY || '';
 
-// ==================== OFFLINE MODE ====================
+// ==================== OFFLINE MODE (template) ====================
 export function isOffline(): boolean {
   return typeof navigator !== 'undefined' && navigator.onLine === false;
 }
 
 export function buildOfflineResponse(
   prompt: string,
-  history: Message[] = []
+  _history: Message[] = []
 ): Partial<Message> {
   const topic = prompt.trim().slice(0, 120) || 'your question';
   const reasoning = [
@@ -41,9 +42,8 @@ export function buildOfflineResponse(
 
 I can't run a live model right now, but you can keep going:
 - Your conversation is saved locally and will sync when you reconnect.
-- This answer was generated locally by the Potso agents so you stay productive without a connection.
-
-Reconnect to Ollama (or the Freebuff provider) and I'll automatically switch back to full multi-agent responses.`;
+- Enable WebLLM (browser WebGPU) for real on-device answers when the API is down.
+- Reconnect to Ollama (or Freebuff) for full multi-agent server responses.`;
   return {
     content,
     reasoning,
@@ -81,12 +81,33 @@ export async function fetchHealth(): Promise<HealthStatus | null> {
   }
 }
 
+/**
+ * Fallback chain:
+ * 1. Server /api/ai/chat (Ollama → Freebuff hybrid)
+ * 2. WebLLM in-browser (WebGPU) when offline or API fails
+ * 3. Template offline message
+ */
 export async function getMultiAgentResponse(
   prompt: string,
   history: Message[] = []
 ): Promise<Partial<Message>> {
-  // Fast path: browser reports offline — answer locally, no network call.
-  if (isOffline()) return buildOfflineResponse(prompt, history);
+  const tryWebLLM = async (): Promise<Partial<Message> | null> => {
+    if (!isWebLLMEnabled() || !isWebGPUAvailable()) return null;
+    try {
+      return await webllmChat(prompt, history);
+    } catch (e) {
+      console.warn('[aiClient] WebLLM fallback error:', e);
+      return null;
+    }
+  };
+
+  // Browser reports offline — skip server, try WebLLM then template
+  if (isOffline()) {
+    const local = await tryWebLLM();
+    if (local) return local;
+    return buildOfflineResponse(prompt, history);
+  }
+
   try {
     const historyPayload = history.slice(-10).map((msg) => ({
       role: msg.role,
@@ -123,9 +144,9 @@ export async function getMultiAgentResponse(
       imageUrl: data.imageUrl,
     };
   } catch (error) {
-    // Backend unreachable (server down, CORS, or network hiccup) — degrade
-    // gracefully to a local offline-style answer instead of a cryptic error.
     console.error('AI Service Error:', error);
+    const local = await tryWebLLM();
+    if (local) return local;
     return buildOfflineResponse(prompt, history);
   }
 }
