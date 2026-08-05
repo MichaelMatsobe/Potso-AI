@@ -63,3 +63,11 @@ UI → Web Speech API (default voice)
 
 - [LICENSE](./LICENSE) Apache-2.0
 - [TERMS.md](./TERMS.md) · [PRIVACY.md](./PRIVACY.md) · [SECURITY.md](./SECURITY.md)
+
+## Freebuff proxy notes
+
+Potso talks to Freebuff through any **OpenAI-compatible** base URL (`FREEBUFF_BASE_URL`, usually ending in `/v1`).
+
+- Default model: `deepseek/deepseek-v4-pro` (override with `FREEBUFF_MODEL`)
+- The client does **not** require `response_format=json_object`; structured multi-agent JSON is extracted from plain text if needed
+- Ensure your proxy exposes `GET /v1/models` (used by health probes) or health will report Freebuff as offline even if chat works

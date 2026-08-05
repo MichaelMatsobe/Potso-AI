@@ -22,5 +22,17 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "mobile",
+    "coverage"
+  ],
+  "include": [
+    "src",
+    "backend",
+    "server.ts",
+    "vite.config.ts"
+  ]
 }
