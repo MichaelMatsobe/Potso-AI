@@ -222,6 +222,16 @@ async function openAICompatibleChat(opts: {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
+      // Some proxies reject response_format; one automatic retry without it.
+      if (
+        opts.jsonMode !== false &&
+        res.status >= 400 &&
+        res.status < 500 &&
+        /response_format|json_object|unsupported|unknown parameter/i.test(errText)
+      ) {
+        clearTimeout(timer);
+        return openAICompatibleChat({ ...opts, jsonMode: false });
+      }
       throw new Error(`${res.status} ${errText.slice(0, 240)}`);
     }
 
@@ -391,16 +401,43 @@ async function freebuffMultiAgentResponse(
   const messages = buildMessages(prompt, history);
   const errors: string[] = [];
 
+  // Many Freebuff / OpenAI-compatible proxies reject response_format=json_object.
+  // Prefer plain chat, then retry once with json mode only if the first reply is not parseable.
   for (let i = 0; i < candidates.length; i++) {
     const model = candidates[i];
     try {
-      const content = await openAICompatibleChat({
+      let content = await openAICompatibleChat({
         baseUrl,
         apiKey,
         model,
         messages,
+        jsonMode: false,
+        timeoutMs: 120_000,
       });
-      const parsed = extractJSON(content);
+      let parsed = extractJSON(content);
+
+      if (!parsed && content.trim()) {
+        try {
+          content = await openAICompatibleChat({
+            baseUrl,
+            apiKey,
+            model,
+            messages: [
+              ...messages,
+              {
+                role: "user",
+                content: "Reply again with ONLY the JSON object, no markdown fences.",
+              },
+            ],
+            jsonMode: true,
+            timeoutMs: 90_000,
+          });
+          parsed = extractJSON(content);
+        } catch {
+          // json mode unsupported — keep original prose path below
+        }
+      }
+
       if (parsed) {
         return normalizeResult(parsed, {
           provider: "freebuff",
@@ -437,7 +474,9 @@ async function freebuffMultiAgentResponse(
     }
   }
 
-  throw new Error(`Freebuff failed. ${errors.join(" | ")}`);
+  throw new Error(
+    `Freebuff failed (check FREEBUFF_BASE_URL / token / model). ${errors.join(" | ")}`
+  );
 }
 
 /**
