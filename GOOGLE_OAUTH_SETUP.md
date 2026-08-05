@@ -74,7 +74,7 @@ FIREBASE_PROJECT_ID=your-firebase-project-id
 FIREBASE_CLIENT_EMAIL=your-firebase-client-email@iam.gserviceaccount.com
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
 FIREBASE_API_KEY=your-firebase-web-api-key
-GEMINI_API_KEY=your-gemini-api-key
+# AI uses Ollama/Freebuff on this branch — no GEMINI_API_KEY
 ```
 
 ## Step 3: Enable Google Sign-In in Firebase
@@ -223,7 +223,7 @@ FIREBASE_PROJECT_ID=your-firebase-project-id
 FIREBASE_CLIENT_EMAIL=your-firebase-client-email@iam.gserviceaccount.com
 FIREBASE_PRIVATE_KEY=your-firebase-private-key
 FIREBASE_API_KEY=your-firebase-api-key
-GEMINI_API_KEY=your-gemini-api-key
+# AI uses Ollama/Freebuff on this branch — no GEMINI_API_KEY
 ```
 
 ### 3. Enable HTTPS
