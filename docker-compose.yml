@@ -8,9 +8,12 @@ services:
     environment:
       NODE_ENV: production
       API_PORT: "8080"
-      AI_PROVIDER: ${AI_PROVIDER:-ollama}
+      AI_PROVIDER: ${AI_PROVIDER:-auto}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      FREEBUFF_BASE_URL: ${FREEBUFF_BASE_URL:-}
+      FREEBUFF_API_KEY: ${FREEBUFF_API_KEY:-}
+      FREEBUFF_MODEL: ${FREEBUFF_MODEL:-deepseek/deepseek-v4-pro}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
       API_ACCESS_KEY: ${API_ACCESS_KEY:-}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-60}

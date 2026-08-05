@@ -108,12 +108,13 @@ export const Settings = ({ onClose, user }: SettingsProps) => {
               <h3 className="text-white font-bold">Potso AI</h3>
               <p className="text-gray-400">
                 Multi-agent reasoning on open-source models (Ollama by default). Free stack — no paid AI
-                APIs required.
+                APIs required. Optional Freebuff hybrid failover.
               </p>
               <div className="bg-white/5 border border-white/10 rounded-lg p-3 space-y-2">
-                <div className="flex justify-between"><span className="text-gray-400">Version</span><span className="text-white">1.3.1</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Version</span><span className="text-white">1.4.0</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">Author</span><span className="text-white">Michael Aaron Matsobe</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">License</span><span className="text-white">Apache-2.0</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">AI stack</span><span className="text-white">Ollama + Freebuff</span></div>
               </div>
               <div className="flex flex-col gap-2">
                 <a href="/privacy.html" className="text-primary hover:underline">Privacy</a>
@@ -155,7 +156,7 @@ export const Settings = ({ onClose, user }: SettingsProps) => {
               <a href="https://github.com/MichaelMatsobe/Potso-AI" target="_blank" rel="noreferrer" className="flex items-center gap-2 text-primary">
                 <Github size={16} /> GitHub repository
               </a>
-              <p className="text-gray-400 text-xs">Docs: README, docs/PROCEDURES.md, docs/IDE_SETUP.md</p>
+              <p className="text-gray-400 text-xs">Docs: README, FREEBUFF_SETUP.md, docs/HYBRID_PROVIDERS.md</p>
               <p className="text-gray-400 text-xs">Admin: /admin.html (API key required)</p>
             </>
           )}

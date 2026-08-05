@@ -4,6 +4,8 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string;
   readonly VITE_API_ACCESS_KEY?: string;
   readonly VITE_GOOGLE_CLIENT_ID?: string;
+  readonly VITE_WEBLLM_ENABLED?: string;
+  readonly VITE_WEBLLM_MODEL?: string;
 }
 
 interface ImportMeta {
