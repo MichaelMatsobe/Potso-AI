@@ -36,14 +36,7 @@ export function buildOfflineResponse(
       thought: 'Structuring the reply so it clearly shows you are offline.',
     },
   ];
-  const content = `You're offline, so Potso answered from its local knowledge base — no AI server was reachable.
-
-**Your question:** "${topic}"
-
-I can't run a live model right now, but you can keep going:
-- Your conversation is saved locally and will sync when you reconnect.
-- Enable WebLLM (browser WebGPU) for real on-device answers when the API is down.
-- Reconnect to Ollama (or Freebuff) for full multi-agent server responses.`;
+  const content = `You're offline, so Potso answered from its local knowledge base — no AI server was reachable.\n\n**Your question:** "${topic}"\n\nI can't run a live model right now, but you can keep going:\n- Your conversation is saved locally and will sync when you reconnect.\n- Enable WebLLM (browser WebGPU) for real on-device answers when the API is down.\n- Reconnect to Ollama (or Freebuff) for full multi-agent server responses.`;
   return {
     content,
     reasoning,
@@ -64,11 +57,19 @@ function authHeaders(): HeadersInit {
 export interface HealthStatus {
   status: string;
   aiProvider: string;
+  aiMode?: string;
+  hybrid?: boolean;
   aiOnline: boolean;
   openSource?: boolean;
   noQuota?: boolean;
+  ollama?: { ok?: boolean; detail?: string };
+  freebuff?: { configured?: boolean; ok?: boolean; detail?: string };
   liveVoiceAvailable?: boolean;
+  liveVoiceMode?: string;
+  firebaseReady?: boolean;
+  guestMode?: boolean;
   accessControl?: { apiKeyRequired?: boolean; rateLimitEnabled?: boolean };
+  paidServices?: boolean;
 }
 
 export async function fetchHealth(): Promise<HealthStatus | null> {

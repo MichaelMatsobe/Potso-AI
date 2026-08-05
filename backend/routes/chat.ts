@@ -121,7 +121,10 @@ router.post('/chats/:chatId/messages', verifyAuthToken, async (req: AuthRequest,
 
     const messagesSnapshot = await messagesCol.orderBy('timestamp', 'asc').get();
 
-    const history = messagesSnapshot.docs.map((doc) => {
+    // Prior turns only — current user content is passed as `prompt` so buildMessages
+    // does not double-append the same user message.
+    const priorDocs = messagesSnapshot.docs.filter((doc) => doc.id !== userMessageId);
+    const history = priorDocs.map((doc) => {
       const msg = doc.data();
       const parts: any[] = [];
       if (msg.content) parts.push({ text: msg.content });
